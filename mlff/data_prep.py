@@ -108,7 +108,7 @@ def dataset_from_json(path, type_dict, cutoff=10.0, batch_size=None,
     @tf.function
     def input_transform(inp):
         r, pair_types, dr_dx = distances_and_pair_types(
-            inp['positions'], inp['types'], 2, cutoff=cutoff)
+            inp['positions'], inp['types'], len(type_dict), cutoff=cutoff)
         return dict(types=inp['types'], pair_types=pair_types, distances=r,
                     dr_dx=dr_dx)
 
