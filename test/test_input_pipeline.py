@@ -6,7 +6,7 @@ from utils import rotation_matrix
 
 
 class InputTest(unittest.TestCase):
-    def test_distances_and_pair_types(self):
+    def test_distances_and_pair_types(self, atol=1e-6):
         # Distance matrix:
         # 0.0 1.5 3.0 2.5
         # 1.5 0.0 3.4 3.7
@@ -28,10 +28,12 @@ class InputTest(unittest.TestCase):
         self.assertEqual(pair_types.shape.as_list(), [4, None, 1])
         self.assertEqual(dr_dx.shape.as_list(), [4, None, None, 3])
 
-        np.testing.assert_allclose(r[0].numpy(), np.array([[1.5], [2.5]]))
-        np.testing.assert_allclose(r[1].numpy(), np.array([[1.5]]))
-        np.testing.assert_allclose(r[2].numpy(), np.array([[2.5]]))
-        np.testing.assert_allclose(r[3].numpy(), np.array([[2.5], [2.5]]))
+        np.testing.assert_allclose(r[0].numpy(), np.array([[1.5],
+                                                           [2.5]]), atol=atol)
+        np.testing.assert_allclose(r[1].numpy(), np.array([[1.5]]), atol=atol)
+        np.testing.assert_allclose(r[2].numpy(), np.array([[2.5]]), atol=atol)
+        np.testing.assert_allclose(r[3].numpy(), np.array([[2.5],
+                                                           [2.5]]), atol=atol)
 
         # Test correct pair types
         # (0, 0) -> 0
@@ -59,7 +61,7 @@ class InputTest(unittest.TestCase):
                                                           cutoff=2.6)
 
         np.testing.assert_allclose(r.to_tensor().numpy(),
-                                   r2.to_tensor().numpy())
+                                   r2.to_tensor().numpy(), atol=atol)
 
         # Test versus numerical derivative
 
