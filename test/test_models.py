@@ -8,6 +8,8 @@ class ModelTest():
     class ModelTest(unittest.TestCase):
 
         def test_save_and_load(self):
+            """Only testing save_weights as standard save does not seem to
+            work with ragged output tensors."""
             # Random input
             xyzs = tf.RaggedTensor.from_tensor(
                 tf.random.normal((1, 4, 3)), lengths=[4])
@@ -34,6 +36,7 @@ class ModelTest():
 class SMATBTest(ModelTest.ModelTest):
 
     def get_model(self, atom_types=['Ni', 'Pt']):
+        # {'foo': 0} is a workaround that should be fixed ASAP
         return SMATB(atom_types, initial_params={'foo': 0}, build_forces=True)
 
     def get_random_model(self, atom_types=['Ni', 'Pt']):

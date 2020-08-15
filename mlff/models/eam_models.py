@@ -213,6 +213,8 @@ class SMATB(DeepEAMPotential):
         tensorflow error"""
         # Determine the maximum cutoff value to pass to DeepEAMPotential.
         # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
+        # The 'or' in the max function is used as fallback in case the list
+        # comprehension returns an empty list
         cutoff = max([initial_params.get(key, 7.5)
                       for key in initial_params if key[0] == 'cut_b'] or [7.5])
         self.initial_params = initial_params
