@@ -24,6 +24,31 @@ class EAMPotential(tf.keras.Model):
         pass
 
     @tf.function
+    def main_body_no_forces(self, types, distances, pair_types):
+        energy = self.body_partition_stitch(types, distances, pair_types)
+        # energy = self.body_gather_scatter(types, distances, pair_types)
+        energy_per_atom = energy/tf.expand_dims(tf.cast(
+            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
+
+        return energy_per_atom
+
+    @tf.function
+    def main_body_with_forces(self, types, distances, pair_types, dr_dx):
+        with tf.GradientTape() as tape:
+            tape.watch(distances.flat_values)
+            energy = self.body_partition_stitch(types, distances, pair_types)
+            # energy = self.body_gather_scatter(types, distances, pair_types)
+        energy_per_atom = energy/tf.expand_dims(tf.cast(
+            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
+
+        dE_dr = tf.RaggedTensor.from_nested_row_splits(
+            tape.gradient(energy, distances.flat_values),
+            distances.nested_row_splits)
+        gradients = tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
+                                  axis=(-3, -4), name='dE_dr_time_dr_dx')
+        return energy_per_atom, gradients
+
+    @tf.function
     def body_partition_stitch(self, types, distances, pair_types):
         """main body using dynamic_partition and dynamic_stitch methods"""
         pair_type_indices = tf.dynamic_partition(
@@ -143,21 +168,10 @@ class DeepEAMPotential(EAMPotential):
                                     ragged_rank=2))
             )
 
-        with tf.GradientTape() as tape:
-            tape.watch(distances.flat_values)
-            energy = self.body_partition_stitch(types, distances, pair_types)
-            # energy = self.body_gather_scatter(types, distances, pair_types)
-        energy_per_atom = energy/tf.expand_dims(tf.cast(
-            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
-
         if self.build_forces:
-            dE_dr = tf.RaggedTensor.from_nested_row_splits(
-                tape.gradient(energy, distances.flat_values),
-                distances.nested_row_splits)
-            gradients = tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
-                                      axis=(-3, -4))
-            return energy_per_atom, gradients
-        return energy_per_atom
+            return self.main_body_with_forces(types, distances,
+                                              pair_types, dr_dx)
+        return self.main_body_no_forces(types, distances, pair_types)
 
 
 class ShallowEAMPotential(EAMPotential):
@@ -187,22 +201,11 @@ class ShallowEAMPotential(EAMPotential):
         distances = inputs['distances']
         pair_types = inputs['pair_types']
 
-        with tf.GradientTape() as tape:
-            tape.watch(distances.flat_values)
-            energy = self.body_partition_stitch(types, distances, pair_types)
-            # energy = self.body_gather_scatter(types, distances, pair_types)
-        energy_per_atom = energy/tf.expand_dims(tf.cast(
-            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
-
         if self.build_forces:
             dr_dx = inputs['dr_dx']
-            dE_dr = tf.RaggedTensor.from_nested_row_splits(
-                tape.gradient(energy, distances.flat_values),
-                distances.nested_row_splits)
-            gradients = tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
-                                      axis=(-3, -4))
-            return energy_per_atom, gradients
-        return energy_per_atom
+            return self.main_body_with_forces(types, distances,
+                                              pair_types, dr_dx)
+        return self.main_body_no_forces(types, distances, pair_types)
 
 
 class SMATB(DeepEAMPotential):
