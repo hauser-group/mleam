@@ -49,8 +49,8 @@ class EAMPotential(tf.keras.Model):
             rho, distances.nested_row_splits)
 
         # Sum over atoms j
-        sum_rho = tf.reduce_sum(rho, axis=-2)
-        sum_phi = tf.reduce_sum(phi, axis=-2)
+        sum_rho = tf.reduce_sum(rho, axis=-2, name='SumRho')
+        sum_phi = tf.reduce_sum(phi, axis=-2, name='SumPhi')
 
         # Embedding energy
         partitioned_sum_rho = tf.dynamic_partition(
