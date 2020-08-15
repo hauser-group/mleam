@@ -12,7 +12,6 @@ def rotation_matrix(n, alpha):
     n = n/np.linalg.norm(n)
     cos_a = np.cos(alpha)
     sin_a = np.sin(alpha)
-    # (1 - cos(a))
     foo = 1 - cos_a
     R = np.array([[n[0]*n[0]*foo + cos_a,
                    n[0]*n[1]*foo - n[2]*sin_a,
@@ -24,3 +23,7 @@ def rotation_matrix(n, alpha):
                    n[2]*n[1]*foo + n[0]*sin_a,
                    n[2]*n[2]*foo + cos_a]])
     return R
+
+
+def derivative_wrt_array(fun, x0, dx=1e-4):
+    return
