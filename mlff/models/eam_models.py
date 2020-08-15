@@ -176,7 +176,8 @@ class DeepEAMPotential(EAMPotential):
 
 class ShallowEAMPotential(EAMPotential):
 
-    def __init__(self, atom_types, **kwargs):
+    def __init__(self, atom_types, cutoff=None, **kwargs):
+        """The cutoff argument is only for compatibility"""
         super().__init__(atom_types, **kwargs)
         types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
         distances = tf.keras.Input(shape=(None, None, 1), ragged=True)
@@ -186,16 +187,12 @@ class ShallowEAMPotential(EAMPotential):
                   'distances': distances}
         if self.build_forces:
             # [batchsize] x N x (N-1) x N x 3
-            dr_dx = tf.keras.Input(shape=(None, None, None, 3), ragged=True)
-            inputs['dr_dx'] = dr_dx
+            inputs['dr_dx'] = tf.keras.Input(shape=(None, None, None, 3),
+                                             ragged=True)
 
         self._set_inputs(inputs)
 
-    # using tf.function raises:
-    # LookupError: No gradient defined for operation
-    # 'map/RaggedFromVariant_2/RaggedTensorFromVariant'
-    # (op type: RaggedTensorFromVariant)
-    # @tf.function
+    @tf.function
     def call(self, inputs):
         types = inputs['types']
         distances = inputs['distances']
