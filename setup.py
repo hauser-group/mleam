@@ -9,5 +9,5 @@ setup(name='mlff',
       url='https://github.com/hauser-group/mlff',
       author='Ralf Meyer',
       author_email='meyer.ralf@yahoo.com',
-      packages=['mlff'],
+      packages=['mlff', 'mlff.models'],
       install_requires=requirements)
