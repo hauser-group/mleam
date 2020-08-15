@@ -5,3 +5,6 @@ __pycache__/
 .ipynb_checkpoints
 notebooks/logs
 notebooks/saved_models
+
+# Saved test models
+test/*.h5

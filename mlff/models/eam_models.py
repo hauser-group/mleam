@@ -209,6 +209,8 @@ class SMATB(DeepEAMPotential):
 
     def __init__(self, atom_types, initial_params={},
                  r0_trainable=False, **kwargs):
+        """TODO: __init__ can not be called with initial_params={}: raises
+        tensorflow error"""
         # Determine the maximum cutoff value to pass to DeepEAMPotential.
         # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
         cutoff = max([initial_params.get(key, 7.5)
