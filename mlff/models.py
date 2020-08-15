@@ -3,6 +3,7 @@ from itertools import combinations_with_replacement
 from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
                          InputNormalization, BornMayer, RhoExp,
                          SqrtEmbedding)
+from mlff.utils import distances_and_pair_types
 
 
 class EAMPotential(tf.keras.Model):
@@ -108,9 +109,10 @@ class EAMPotential(tf.keras.Model):
 
 class DeepEAMPotential(EAMPotential):
 
-    def __init__(self, atom_types, **kwargs):
+    def __init__(self, atom_types, cutoff=10.0, **kwargs):
         super().__init__(atom_types, **kwargs)
 
+        self.cutoff = cutoff
         types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
         positions = tf.keras.Input(shape=(None, 3), ragged=True)
         inputs = {'types': types, 'positions': positions}
@@ -121,21 +123,33 @@ class DeepEAMPotential(EAMPotential):
     def call(self, inputs):
         types = inputs['types']
         positions = inputs['positions']
+        distances, pair_types, dr_dx = tf.map_fn(
+            lambda x: distances_and_pair_types(
+                x[0], x[1], len(self.atom_types), self.cutoff),
+            (positions, types),
+            fn_output_signature=(tf.RaggedTensorSpec(
+                                    shape=[None, None, 1], ragged_rank=1),
+                                 tf.RaggedTensorSpec(
+                                    shape=[None, None, 1], ragged_rank=1,
+                                    dtype=tf.int32),
+                                 tf.RaggedTensorSpec(
+                                    shape=[None, None, None, 3],
+                                    ragged_rank=2))
+            )
 
         with tf.GradientTape() as tape:
-            tape.watch(positions.flat_values)
-            # distances, pair_types = calc_distances_and_pair_types(
-            #     positions, types, len(self.atom_types))
-            distances = calc_distances(positions)
-            pair_types = calc_pair_types(types, len(self.atom_types))
+            tape.watch(distances.flat_values)
             energy = self.body_partition_stitch(types, distances, pair_types)
+            # energy = self.body_gather_scatter(types, distances, pair_types)
         energy_per_atom = energy/tf.expand_dims(tf.cast(
-            types.row_lengths(), tf.float32, name='number_of_atoms'), -1)
+            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
 
         if self.build_forces:
-            gradients = tf.RaggedTensor.from_row_splits(
-                tape.gradient(energy, positions.flat_values),
-                positions.row_splits)
+            dE_dr = tf.RaggedTensor.from_nested_row_splits(
+                tape.gradient(energy, distances.flat_values),
+                distances.nested_row_splits)
+            gradients = tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
+                                      axis=(-3, -4))
             return energy_per_atom, gradients
         return energy_per_atom
 
@@ -181,13 +195,17 @@ class ShallowEAMPotential(EAMPotential):
         return energy_per_atom
 
 
-class SMATB(ShallowEAMPotential):
+class SMATB(DeepEAMPotential):
 
     def __init__(self, atom_types, initial_params={},
                  r0_trainable=False, **kwargs):
+        # Determine the maximum cutoff value to pass to DeepEAMPotential.
+        # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
+        cutoff = max([initial_params.get(key, 7.5)
+                      for key in initial_params if key[0] == 'cut_b'] or [7.5])
         self.initial_params = initial_params
         self.r0_trainable = r0_trainable
-        super().__init__(atom_types, **kwargs)
+        super().__init__(atom_types, cutoff=cutoff, **kwargs)
 
     def build_functions(self):
         pair_potentials = {}
