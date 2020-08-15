@@ -119,7 +119,11 @@ class DeepEAMPotential(EAMPotential):
 
         self._set_inputs(inputs)
 
-    @tf.function
+    # using tf.function raises:
+    # LookupError: No gradient defined for operation
+    # 'map/RaggedFromVariant_2/RaggedTensorFromVariant'
+    # (op type: RaggedTensorFromVariant)
+    # @tf.function
     def call(self, inputs):
         types = inputs['types']
         positions = inputs['positions']
@@ -171,7 +175,11 @@ class ShallowEAMPotential(EAMPotential):
 
         self._set_inputs(inputs)
 
-    @tf.function
+    # using tf.function raises:
+    # LookupError: No gradient defined for operation
+    # 'map/RaggedFromVariant_2/RaggedTensorFromVariant'
+    # (op type: RaggedTensorFromVariant)
+    # @tf.function
     def call(self, inputs):
         types = inputs['types']
         distances = inputs['distances']
