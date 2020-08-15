@@ -23,6 +23,7 @@ class EAMPotential(tf.keras.Model):
     def build_functions(self):
         pass
 
+    @tf.function
     def body_partition_stitch(self, types, distances, pair_types):
         """main body using dynamic_partition and dynamic_stitch methods"""
         pair_type_indices = tf.dynamic_partition(
@@ -71,6 +72,7 @@ class EAMPotential(tf.keras.Model):
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name='energy')
 
+    @tf.function
     def body_gather_scatter(self, types, distances, pair_types):
         """main body using gather and scatter methods"""
         phi = tf.zeros_like(distances.flat_values)
