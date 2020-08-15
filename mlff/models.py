@@ -119,7 +119,7 @@ class DeepEAMPotential(EAMPotential):
 
         self._set_inputs(inputs)
 
-    # @tf.function
+    @tf.function
     def call(self, inputs):
         types = inputs['types']
         positions = inputs['positions']
@@ -171,7 +171,7 @@ class ShallowEAMPotential(EAMPotential):
 
         self._set_inputs(inputs)
 
-    # @tf.function
+    @tf.function
     def call(self, inputs):
         types = inputs['types']
         distances = inputs['distances']
