@@ -26,7 +26,7 @@ class EAMPotential(tf.keras.Model):
     def body_partition_stitch(self, types, distances, pair_types):
         """main body using dynamic_partition and dynamic_stitch methods"""
         pair_type_indices = tf.dynamic_partition(
-                tf.expand_dims(tf.range(tf.size(distances)), -1) * 1,
+                tf.expand_dims(tf.range(tf.size(distances)), -1),
                 pair_types.flat_values, len(self.atom_pair_types),
                 name='pair_type_indices')
         # Partition distances according to the pair_type
@@ -38,8 +38,8 @@ class EAMPotential(tf.keras.Model):
         phi = [self.pair_potentials[t](part)
                for t, part in zip(self.atom_pair_types, partitioned_r)]
 
-        rho = tf.expand_dims(tf.dynamic_stitch(pair_type_indices, rho * 1), -1)
-        phi = tf.expand_dims(tf.dynamic_stitch(pair_type_indices, phi * 1), -1)
+        rho = tf.expand_dims(tf.dynamic_stitch(pair_type_indices, rho), -1)
+        phi = tf.expand_dims(tf.dynamic_stitch(pair_type_indices, phi), -1)
 
         # Reshape to ragged tensors
         phi = tf.RaggedTensor.from_nested_row_splits(
@@ -53,10 +53,10 @@ class EAMPotential(tf.keras.Model):
 
         # Embedding energy
         partitioned_sum_rho = tf.dynamic_partition(
-            sum_rho * 1, types, len(self.atom_types),
+            sum_rho, types, len(self.atom_types),
             name='partitioned_sum_rho')
         type_indices = tf.dynamic_partition(
-            tf.expand_dims(tf.range(tf.size(sum_rho)), -1) * 1,
+            tf.expand_dims(tf.range(tf.size(sum_rho)), -1),
             types.flat_values, len(self.atom_types), name='type_indices')
         embedding_energies = [
             self.embedding_functions[t](rho_t)
@@ -64,7 +64,7 @@ class EAMPotential(tf.keras.Model):
         atomic_energies = (
             sum_phi.flat_values
             + tf.expand_dims(
-                tf.dynamic_stitch(type_indices, embedding_energies * 1), -1))
+                tf.dynamic_stitch(type_indices, embedding_energies), -1))
         # Reshape to ragged
         atomic_energies = tf.RaggedTensor.from_row_splits(
             atomic_energies, types.row_splits)
