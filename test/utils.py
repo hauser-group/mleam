@@ -24,6 +24,7 @@ def rotation_matrix(n, alpha):
                    n[2]*n[2]*foo + cos_a]])
     return R
 
+
 def derive_scalar_wrt_array(fun, x0, dx=1e-4):
     """fun: scalar function,
        x0: np.array at which point the function should be derived"""
@@ -37,6 +38,7 @@ def derive_scalar_wrt_array(fun, x0, dx=1e-4):
         f_minus = fun(x0 - displacement)
         res[ind] = (f_plus - f_minus)/(2*dx)
     return res
+
 
 def derive_array_wrt_array(fun, x0, dx=1e-4):
     """"""

@@ -40,6 +40,7 @@ class ScalarNumericalDerivativeTest(unittest.TestCase):
 
         np.testing.assert_allclose(num_deriv, ref_deriv, atol=atol)
 
+
 class ArrayNumericalDerivativeTest(unittest.TestCase):
 
     def test_independent_variables(self, atol=1e-6):
@@ -52,7 +53,7 @@ class ArrayNumericalDerivativeTest(unittest.TestCase):
         ref_deriv[ind + ind] = 2*x0.flatten()
         num_deriv = derive_array_wrt_array(fun, x0)
 
-
+        np.testing.assert_allclose(num_deriv, ref_deriv, atol=atol)
 
     def test_x_dot_x(self, atol=1e-6):
         """x: array(n x m)
