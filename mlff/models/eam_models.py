@@ -27,8 +27,11 @@ class EAMPotential(tf.keras.Model):
     def main_body_no_forces(self, types, distances, pair_types):
         energy = self.body_partition_stitch(types, distances, pair_types)
         # energy = self.body_gather_scatter(types, distances, pair_types)
-        energy_per_atom = energy/tf.expand_dims(tf.cast(
-            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
+        number_of_atoms = tf.cast(types.row_lengths(), energy.dtype,
+                                  name='number_of_atoms')
+        energy_per_atom = tf.divide(
+            energy, tf.expand_dims(number_of_atoms, axis=-1),
+            name='energy_per_atom')
 
         return energy_per_atom
 
@@ -38,14 +41,20 @@ class EAMPotential(tf.keras.Model):
             tape.watch(distances.flat_values)
             energy = self.body_partition_stitch(types, distances, pair_types)
             # energy = self.body_gather_scatter(types, distances, pair_types)
-        energy_per_atom = energy/tf.expand_dims(tf.cast(
-            types.row_lengths(), tf.float32, name='number_of_atoms'), axis=-1)
+        number_of_atoms = tf.cast(types.row_lengths(), energy.dtype,
+                                  name='number_of_atoms')
+        energy_per_atom = tf.divide(
+            energy, tf.expand_dims(number_of_atoms, axis=-1),
+            name='energy_per_atom')
 
         dE_dr = tf.RaggedTensor.from_nested_row_splits(
             tape.gradient(energy, distances.flat_values),
-            distances.nested_row_splits)
+            distances.nested_row_splits, name='dE_dr')
+        # dr_dx.shape = (batch_size, None, None, None, 3)
+        # dE_dr.shape = (batch_size, None, None, 1)
+        # Sum over atom indices i and j:
         gradients = tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
-                                  axis=(-3, -4), name='dE_dr_time_dr_dx')
+                                  axis=(-3, -4), name='dE_dr_times_dr_dx')
         return energy_per_atom, gradients
 
     @tf.function
@@ -90,10 +99,12 @@ class EAMPotential(tf.keras.Model):
         atomic_energies = (
             sum_phi.flat_values
             + tf.expand_dims(
-                tf.dynamic_stitch(type_indices, embedding_energies), -1))
+                tf.dynamic_stitch(type_indices, embedding_energies,
+                                  name='embedding_energies'),
+                -1))
         # Reshape to ragged
         atomic_energies = tf.RaggedTensor.from_row_splits(
-            atomic_energies, types.row_splits)
+            atomic_energies, types.row_splits, name='atomic_energies')
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name='energy')
 
@@ -159,13 +170,14 @@ class DeepEAMPotential(EAMPotential):
                 x[0], x[1], len(self.atom_types), self.cutoff),
             (positions, types),
             fn_output_signature=(tf.RaggedTensorSpec(
-                                    shape=[None, None, 1], ragged_rank=1),
+                                    shape=[None, None, 1], ragged_rank=1,
+                                    dtype=positions.dtype),
                                  tf.RaggedTensorSpec(
                                     shape=[None, None, 1], ragged_rank=1,
-                                    dtype=tf.int32),
+                                    dtype=types.dtype),
                                  tf.RaggedTensorSpec(
                                     shape=[None, None, None, 3],
-                                    ragged_rank=2))
+                                    ragged_rank=2, dtype=positions.dtype))
             )
 
         if self.build_forces:
@@ -182,7 +194,7 @@ class ShallowEAMPotential(EAMPotential):
         types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
         distances = tf.keras.Input(shape=(None, None, 1), ragged=True)
         pair_types = tf.keras.Input(shape=(None, None, 1), ragged=True,
-                                    dtype=tf.int32)
+                                    dtype=types.dtype)
         inputs = {'types': types, 'pair_types': pair_types,
                   'distances': distances}
         if self.build_forces:
