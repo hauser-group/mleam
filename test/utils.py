@@ -50,5 +50,5 @@ def derive_array_wrt_array(fun, x0, dx=1e-4):
         f_plus = fun(x0 + displacement)
         f_minus = fun(x0 - displacement)
         # None is used as replacement for :
-        res[(None, None) + ind] = (f_plus - f_minus)/(2*dx)
+        res[(Ellipsis, ) + ind] = (f_plus - f_minus)/(2*dx)
     return res

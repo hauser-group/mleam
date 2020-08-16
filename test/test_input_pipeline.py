@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from mlff.data_prep import distances_and_pair_types
+from mlff.utils import distances_and_pair_types
 from utils import rotation_matrix
 
 

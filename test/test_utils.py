@@ -52,8 +52,23 @@ class ArrayNumericalDerivativeTest(unittest.TestCase):
         ref_deriv[ind + ind] = 2*x0.flatten()
         num_deriv = derive_array_wrt_array(fun, x0)
 
-        np.testing.assert_allclose(num_deriv, ref_deriv, atol=atol)
+
 
     def test_x_dot_x(self, atol=1e-6):
-        """TODO write missing test"""
-        raise NotImplementedError('Missing TestCase!')
+        """x: array(n x m)
+           (x[0, :] * x[0, :].T, x[0, :] * x[1, :].T, x[0, :] * x[2, :].T
+            x[1, :] * x[0, :].T, x[1, :] * x[1, :].T, x[1, :] * x[2, :].T
+            x[2, :] * x[0, :].T, x[2, :] * x[1, :].T, x[2, :] * x[2, :].T)
+        """
+
+        def fun(x):
+            return x.dot(x.T)
+
+        x0 = np.random.randn(4, 3)
+        ref_deriv = np.zeros((4, 4, 4, 3))
+        for i in range(4):
+            for j in range(4):
+                ref_deriv[i, j, i, :] += x0[j, :]
+                ref_deriv[i, j, j, :] += x0[i, :]
+        num_deriv = derive_array_wrt_array(fun, x0)
+        np.testing.assert_allclose(num_deriv, ref_deriv, atol=atol)
