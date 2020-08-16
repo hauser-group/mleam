@@ -11,6 +11,7 @@ class ModelTest():
         def test_save_and_load(self):
             """Only testing save_weights as standard save does not seem to
             work with ragged output tensors."""
+            tf.keras.backend.clear_session()
             # Random input
             xyzs = tf.RaggedTensor.from_tensor(
                 tf.random.normal((1, 4, 3)), lengths=[4])
@@ -34,9 +35,12 @@ class ModelTest():
                                        ref_forces.to_tensor().numpy())
 
         def test_derivative(self, atol=1e-3):
-            """ Problem when testing the derivative is the low numerical
-                accuracy of the float32 used in the models. The fix for now
-                is to use small values of dx and atol"""
+            """Test analytical derivative vs numerical using a float32 model.
+               A cruicial problem is the low numerical accuracy of float32
+               which sometimes leads to failing tests. The fix for now
+               is to use small values of dx and atol. A more reliable test
+               is done in test_derivative_float64()."""
+            tf.keras.backend.clear_session()
             # Number of atoms
             N = 4
             # Random input
@@ -60,6 +64,7 @@ class ModelTest():
 
         def test_derivative_float64(self, atol=1e-6):
             """"""
+            tf.keras.backend.clear_session()
             tf.keras.backend.set_floatx('float64')
             # Number of atoms
             N = 4
