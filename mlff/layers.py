@@ -94,4 +94,24 @@ class SqrtEmbedding(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, rho):
+        """rho.shape = (None,)"""
         return -tf.math.sqrt(rho)
+
+
+class NNSqrtEmbedding(tf.keras.layers.Layer):
+
+    def __init__(self, layers=[20, 20], **kwargs):
+        super().__init__(**kwargs)
+        self.dense_layers = []
+        for n in layers:
+            self.dense_layers.append(tf.keras.layers.Dense(
+                n, activation='tanh'))
+        self.dense_layers.append(tf.keras.layers.Dense(1))
+
+    @tf.function
+    def call(self, rho):
+        """rho.shape = (None,)"""
+        nn_results = self.dense_layers[0](tf.expand_dims(rho, axis=-1))
+        for layer in self.dense_layers[1:]:
+            nn_results = layer(nn_results)
+        return -tf.math.sqrt(rho)*tf.squeeze(nn_results, axis=-1)

@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from mlff.models import SMATB
+from mlff.models import SMATB, NNEmbeddingModel
 from utils import derive_scalar_wrt_array
 
 
@@ -93,7 +93,7 @@ class SMATBTest(ModelTest.ModelTest):
     def get_model(self, atom_types=['Ni', 'Pt']):
         # {'foo': 0} is a workaround for a bug in __init__ that should be
         # fixed ASAP
-        return SMATB(atom_types, initial_params={'foo': 0}, build_forces=True)
+        return SMATB(atom_types, params={'foo': 0}, build_forces=True)
 
     def get_random_model(self, atom_types=['Ni', 'Pt']):
         # Generate 12 random positive numbers for the SMATB parameters
@@ -107,8 +107,33 @@ class SMATBTest(ModelTest.ModelTest):
             ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = SMATB(atom_types, initial_params=initial_params,
-                      build_forces=True)
+        model = SMATB(atom_types, params=initial_params, build_forces=True)
+
+        return model
+
+
+class NNEmbeddingModelTest(ModelTest.ModelTest):
+
+    def get_model(self, atom_types=['Ni', 'Pt']):
+        return NNEmbeddingModel(atom_types,
+                                params={('F_layers', 'Ni'): [12, 8],
+                                        ('F_layers', 'Pt'): [6, 8, 4]},
+                                build_forces=True)
+
+    def get_random_model(self, atom_types=['Ni', 'Pt']):
+        # Generate 12 random positive numbers for the SMATB parameters
+        p = np.abs(np.random.randn(12))
+        params = {
+            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
+            ('xi', 'PtPt'): p[3], ('xi', 'NiPt'): p[4], ('xi', 'NiNi'): p[5],
+            ('p', 'PtPt'): p[6], ('p', 'NiPt'): p[7], ('p', 'NiNi'): p[8],
+            ('q', 'PtPt'): p[9], ('q', 'NiPt'): p[10], ('q', 'NiNi'): p[11],
+            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
+            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
+            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
+            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
+            ('F_layers', 'Ni'): [12, 8], ('F_layers', 'Pt'): [6, 8, 4]}
+        model = NNEmbeddingModel(atom_types, params=params, build_forces=True)
 
         return model
 

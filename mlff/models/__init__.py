@@ -1,3 +1,3 @@
-from .eam_models import SMATB
+from .eam_models import SMATB, NNEmbeddingModel
 
-__all__ = ['SMATB', ]
+__all__ = ['SMATB', 'NNEmbeddingModel']
