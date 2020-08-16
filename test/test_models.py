@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 from mlff.models import SMATB
+from utils import derive_scalar_wrt_array
 
 
 class ModelTest():
@@ -32,11 +33,37 @@ class ModelTest():
             np.testing.assert_allclose(new_forces.to_tensor().numpy(),
                                        ref_forces.to_tensor().numpy())
 
+        def test_derivative(self, atol=1e-3):
+            """ Problem when testing the derivative is the low numerical
+                accuracy of the float32 used in the models. The fix for now
+                is to use small values of dx and atol"""
+            # Number of atoms
+            N = 4
+            # Random input
+            xyzs = tf.RaggedTensor.from_tensor(
+                tf.random.normal((1, N, 3)), lengths=[N])
+            types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+
+            model = self.get_random_model(atom_types=['Ni', 'Pt'])
+            _, forces = model({'positions': xyzs, 'types': types})
+
+            def fun(x):
+                """ Model puts out energy_per_atom, which has to be multiplied
+                    by N to get the total energy"""
+                xyzs = tf.RaggedTensor.from_tensor(x, lengths=[N])
+                return N*model({'positions': xyzs, 'types': types})[0]
+            num_forces = derive_scalar_wrt_array(fun, xyzs.to_tensor().numpy(),
+                                                 dx=1e-2)
+
+            np.testing.assert_allclose(forces.to_tensor().numpy(),
+                                       num_forces, atol=atol)
+
 
 class SMATBTest(ModelTest.ModelTest):
 
     def get_model(self, atom_types=['Ni', 'Pt']):
-        # {'foo': 0} is a workaround that should be fixed ASAP
+        # {'foo': 0} is a workaround for a bug in __init__ that should be
+        # fixed ASAP
         return SMATB(atom_types, initial_params={'foo': 0}, build_forces=True)
 
     def get_random_model(self, atom_types=['Ni', 'Pt']):
