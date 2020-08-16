@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from mlff.models import SMATB, NNEmbeddingModel
+from mlff.models import SMATB, NNEmbeddingModel, NNRhoModel
 from utils import derive_scalar_wrt_array
 
 
@@ -34,7 +34,7 @@ class ModelTest():
             np.testing.assert_allclose(new_forces.to_tensor().numpy(),
                                        ref_forces.to_tensor().numpy())
 
-        def test_derivative(self, atol=1e-3):
+        def test_derivative(self, atol=2e-3):
             """Test analytical derivative vs numerical using a float32 model.
                A cruicial problem is the low numerical accuracy of float32
                which sometimes leads to failing tests. The fix for now
@@ -134,6 +134,32 @@ class NNEmbeddingModelTest(ModelTest.ModelTest):
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
             ('F_layers', 'Ni'): [12, 8], ('F_layers', 'Pt'): [6, 8, 4]}
         model = NNEmbeddingModel(atom_types, params=params, build_forces=True)
+
+        return model
+
+
+class NNRhoModelTest(ModelTest.ModelTest):
+
+    def get_model(self, atom_types=['Ni', 'Pt']):
+        return NNRhoModel(atom_types,
+                          params={('rho_layers', 'PtPt'): [16],
+                                  ('rho_layers', 'NiNi'): [12, 8],
+                                  ('rho_layers', 'NiPt'): [6, 8, 4]},
+                          build_forces=True)
+
+    def get_random_model(self, atom_types=['Ni', 'Pt']):
+        # Generate 6 random positive numbers for the SMATB parameters
+        p = np.abs(np.random.randn(6))
+        params = {
+            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
+            ('p', 'PtPt'): p[3], ('p', 'NiPt'): p[4], ('p', 'NiNi'): p[5],
+            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
+            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
+            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
+            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
+            ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
+            ('rho_layers', 'NiPt'): [6, 8, 4]}
+        model = NNRhoModel(atom_types, params=params, build_forces=True)
 
         return model
 

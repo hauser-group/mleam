@@ -1,7 +1,7 @@
 import tensorflow as tf
 from itertools import combinations_with_replacement
 from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
-                         InputNormalization, BornMayer, RhoExp,
+                         InputNormalization, BornMayer, RhoExp, RhoNN,
                          SqrtEmbedding, NNSqrtEmbedding)
 from mlff.utils import distances_and_pair_types
 
@@ -290,4 +290,34 @@ class NNEmbeddingModel(SMATB):
             embedding_functions[t] = NNSqrtEmbedding(
                 layers=self.params.get(('F_layers', t), [20, 20]),
                 name='%s-Embedding' % t)
+        return pair_potentials, pair_rho, embedding_functions
+
+
+class NNRhoModel(SMATB):
+
+    def build_functions(self):
+        pair_potentials = {}
+        pair_rho = {}
+        for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
+            type_i = ''.join([t1, t2])
+            normalized_input = InputNormalization(
+                type_i, r0=self.params.get(('r0', type_i), 2.7),
+                trainable=self.r0_trainable)
+            cutoff_function = PolynomialCutoffFunction(
+                type_i, a=self.params.get(('cut_a', type_i), 5.0),
+                b=self.params.get(('cut_b', type_i), 7.5))
+            pair_potential = BornMayer(
+                type_i, A=self.params.get(('A', type_i), 0.2),
+                p=self.params.get(('p', type_i), 9.2))
+            rho = RhoNN(type_i,
+                        layers=self.params.get(
+                            ('rho_layers', type_i), [20, 20]))
+            pair_potentials[type_i] = PairInteraction(
+                normalized_input, pair_potential, cutoff_function,
+                name='%s-phi' % type_i)
+            pair_rho[type_i] = PairInteraction(
+                normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
+        embedding_functions = {}
+        for t in self.atom_types:
+            embedding_functions[t] = SqrtEmbedding(name='%s-Embedding' % t)
         return pair_potentials, pair_rho, embedding_functions
