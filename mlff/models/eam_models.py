@@ -234,6 +234,7 @@ class SMATB(DeepEAMPotential):
         super().__init__(atom_types, cutoff=cutoff, **kwargs)
 
     def build_functions(self):
+        # Todo should probably move to parent class
         pair_potentials = {}
         pair_rho = {}
         for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
@@ -244,12 +245,8 @@ class SMATB(DeepEAMPotential):
             cutoff_function = PolynomialCutoffFunction(
                 type_i, a=self.params.get(('cut_a', type_i), 5.0),
                 b=self.params.get(('cut_b', type_i), 7.5))
-            pair_potential = BornMayer(
-                type_i, A=self.params.get(('A', type_i), 0.2),
-                p=self.params.get(('p', type_i), 9.2))
-            rho = RhoExp(type_i,
-                         xi=self.params.get(('xi', type_i), 1.6),
-                         q=self.params.get(('q', type_i), 3.5))
+            pair_potential = self.get_pair_potential(type_i)
+            rho = self.get_rho(type_i)
             pair_potentials[type_i] = PairInteraction(
                 normalized_input, pair_potential, cutoff_function,
                 name='%s-phi' % type_i)
@@ -257,99 +254,36 @@ class SMATB(DeepEAMPotential):
                 normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
         embedding_functions = {}
         for t in self.atom_types:
-            embedding_functions[t] = SqrtEmbedding(name='%s-Embedding' % t)
+            embedding_functions[t] = self.get_embedding(t)
         return pair_potentials, pair_rho, embedding_functions
+
+    def get_pair_potential(self, pair_type):
+        return BornMayer(pair_type, A=self.params.get(('A', pair_type), 0.2),
+                         p=self.params.get(('p', pair_type), 9.2))
+
+    def get_rho(self, pair_type):
+        return RhoExp(pair_type, xi=self.params.get(('xi', pair_type), 1.6),
+                      q=self.params.get(('q', pair_type), 3.5))
+
+    def get_embedding(self, type):
+        return SqrtEmbedding(name='%s-Embedding' % type)
 
 
 class NNEmbeddingModel(SMATB):
 
-    def build_functions(self):
-        pair_potentials = {}
-        pair_rho = {}
-        for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
-            type_i = ''.join([t1, t2])
-            normalized_input = InputNormalization(
-                type_i, r0=self.params.get(('r0', type_i), 2.7),
-                trainable=self.r0_trainable)
-            cutoff_function = PolynomialCutoffFunction(
-                type_i, a=self.params.get(('cut_a', type_i), 5.0),
-                b=self.params.get(('cut_b', type_i), 7.5))
-            pair_potential = BornMayer(
-                type_i, A=self.params.get(('A', type_i), 0.2),
-                p=self.params.get(('p', type_i), 9.2))
-            rho = RhoExp(type_i,
-                         xi=self.params.get(('xi', type_i), 1.6),
-                         q=self.params.get(('q', type_i), 3.5))
-            pair_potentials[type_i] = PairInteraction(
-                normalized_input, pair_potential, cutoff_function,
-                name='%s-phi' % type_i)
-            pair_rho[type_i] = PairInteraction(
-                normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
-        embedding_functions = {}
-        for t in self.atom_types:
-            embedding_functions[t] = NNSqrtEmbedding(
-                layers=self.params.get(('F_layers', t), [20, 20]),
-                name='%s-Embedding' % t)
-        return pair_potentials, pair_rho, embedding_functions
+    def get_embedding(self, type):
+        return NNSqrtEmbedding(
+            layers=self.params.get(('F_layers', type), [20, 20]),
+            name='%s-Embedding' % type)
 
 
 class NNRhoModel(SMATB):
 
-    def build_functions(self):
-        pair_potentials = {}
-        pair_rho = {}
-        for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
-            type_i = ''.join([t1, t2])
-            normalized_input = InputNormalization(
-                type_i, r0=self.params.get(('r0', type_i), 2.7),
-                trainable=self.r0_trainable)
-            cutoff_function = PolynomialCutoffFunction(
-                type_i, a=self.params.get(('cut_a', type_i), 5.0),
-                b=self.params.get(('cut_b', type_i), 7.5))
-            pair_potential = BornMayer(
-                type_i, A=self.params.get(('A', type_i), 0.2),
-                p=self.params.get(('p', type_i), 9.2))
-            rho = RhoNN(type_i,
-                        layers=self.params.get(
-                            ('rho_layers', type_i), [20, 20]))
-            pair_potentials[type_i] = PairInteraction(
-                normalized_input, pair_potential, cutoff_function,
-                name='%s-phi' % type_i)
-            pair_rho[type_i] = PairInteraction(
-                normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
-        embedding_functions = {}
-        for t in self.atom_types:
-            embedding_functions[t] = SqrtEmbedding(name='%s-Embedding' % t)
-        return pair_potentials, pair_rho, embedding_functions
+    def get_rho(self, pair_type):
+        return RhoNN(
+            pair_type,
+            layers=self.params.get(('rho_layers', pair_type), [20, 20]))
 
 
-class NNEmbeddingNNRhoModel(SMATB):
-
-    def build_functions(self):
-        pair_potentials = {}
-        pair_rho = {}
-        for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
-            type_i = ''.join([t1, t2])
-            normalized_input = InputNormalization(
-                type_i, r0=self.params.get(('r0', type_i), 2.7),
-                trainable=self.r0_trainable)
-            cutoff_function = PolynomialCutoffFunction(
-                type_i, a=self.params.get(('cut_a', type_i), 5.0),
-                b=self.params.get(('cut_b', type_i), 7.5))
-            pair_potential = BornMayer(
-                type_i, A=self.params.get(('A', type_i), 0.2),
-                p=self.params.get(('p', type_i), 9.2))
-            rho = RhoNN(type_i,
-                        layers=self.params.get(
-                            ('rho_layers', type_i), [20, 20]))
-            pair_potentials[type_i] = PairInteraction(
-                normalized_input, pair_potential, cutoff_function,
-                name='%s-phi' % type_i)
-            pair_rho[type_i] = PairInteraction(
-                normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
-        embedding_functions = {}
-        for t in self.atom_types:
-            embedding_functions[t] = NNSqrtEmbedding(
-                layers=self.params.get(('F_layers', t), [20, 20]),
-                name='%s-Embedding' % t)
-        return pair_potentials, pair_rho, embedding_functions
+class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):
+    """Combination of NNEmbeddingModel and NNRhoModel"""
