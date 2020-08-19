@@ -25,6 +25,8 @@ class EAMPotential(tf.keras.Model):
 
     @tf.function
     def main_body_no_forces(self, types, distances, pair_types):
+        """Calculates the energy per atom by calling body_partition_stitch()
+        """
         energy = self.body_partition_stitch(types, distances, pair_types)
         # energy = self.body_gather_scatter(types, distances, pair_types)
         number_of_atoms = tf.cast(types.row_lengths(), energy.dtype,
@@ -37,6 +39,9 @@ class EAMPotential(tf.keras.Model):
 
     @tf.function
     def main_body_with_forces(self, types, distances, pair_types, dr_dx):
+        """Calculates the energy per atom and the derivative of the total
+           energy with respect to the distances
+        """
         with tf.GradientTape() as tape:
             tape.watch(distances.flat_values)
             energy = self.body_partition_stitch(types, distances, pair_types)
@@ -66,7 +71,7 @@ class EAMPotential(tf.keras.Model):
                 name='pair_type_indices')
         # Partition distances according to the pair_type
         partitioned_r = tf.dynamic_partition(
-            distances.flat_values * 1, pair_types.flat_values,
+            distances.flat_values, pair_types.flat_values,
             len(self.atom_pair_types), name='partitioned_r')
         rho = [self.pair_rho[t](part)
                for t, part in zip(self.atom_pair_types, partitioned_r)]
