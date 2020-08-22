@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 import json
 from mlff.utils import distances_and_pair_types
 
@@ -60,6 +61,53 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
 
     input_dataset = input_dataset.map(
         input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    N = tf.constant([len(sym) for sym in data['symbols']], dtype=tf.float32)
+    energy_per_atom = tf.constant(data['e_dft_bond'], dtype=tf.float32)/N
+    output_dataset = tf.data.Dataset.from_tensor_slices(
+        (energy_per_atom,
+         tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
+
+    input_dataset = input_dataset.apply(
+        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
+    output_dataset = output_dataset.batch(batch_size=batch_size)
+
+    dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
+
+    dataset = dataset.shuffle(buffer_size=buffer_size)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    return dataset
+
+
+def descriptor_dataset_from_json(path, descriptor_set,
+                                 batch_size=None, buffer_size=None):
+    with open(path, 'r') as fin:
+        data = json.load(fin)
+
+    if batch_size is None:
+        batch_size = len(data['symbols'])
+        buffer_size = batch_size
+    buffer_size = buffer_size or 4*batch_size
+
+    types = tf.expand_dims(tf.ragged.constant(
+                [[descriptor_set.type_dict[t] for t in syms]
+                    for syms in data['symbols']]),
+            axis=-1)
+
+    def gen():
+        for i in range(len(data['symbols'])):
+            Gs, dGs = descriptor_set.eval_with_derivatives_atomwise(
+                data['symbols'][i], np.array(data['positions'][i]))
+            yield dict(types=types[i], Gs=Gs, dGs=dGs)
+
+    input_dataset = tf.data.Dataset.from_generator(
+        gen,
+        {'types': tf.int32,
+         'Gs': tf.float32,
+         'dGs': tf.float32},
+        {'types': tf.TensorShape([None, 1]),
+         'Gs': tf.TensorShape([None, None]),
+         'dGs': tf.TensorShape([None, None, None, 3])})
 
     N = tf.constant([len(sym) for sym in data['symbols']], dtype=tf.float32)
     energy_per_atom = tf.constant(data['e_dft_bond'], dtype=tf.float32)/N

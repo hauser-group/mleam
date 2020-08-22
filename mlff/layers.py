@@ -136,3 +136,23 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
         return -tf.math.sqrt(rho)*tf.squeeze(nn_results, axis=-1)
+
+
+class AtomicNeuralNetwork(tf.keras.layers.Layer):
+
+    def __init__(self, layers=[20, 20], **kwargs):
+        super().__init__(**kwargs)
+        self.dense_layers = []
+        for n in layers:
+            self.dense_layers.append(tf.keras.layers.Dense(
+                n, activation='tanh'))
+        # Last layer is linear
+        self.dense_layers.append(tf.keras.layers.Dense(1))
+
+    @tf.function
+    def call(self, Gs):
+        """Gs.shape = (None, num_Gs)"""
+        nn_results = self.dense_layers[0](Gs)
+        for layer in self.dense_layers[1:]:
+            nn_results = layer(nn_results)
+        return nn_results
