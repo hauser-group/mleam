@@ -57,8 +57,10 @@ class ModelTest():
                     by N to get the total energy"""
                 xyzs = tf.RaggedTensor.from_tensor(x, lengths=[N])
                 return N*model({'positions': xyzs, 'types': types})[0]
-            num_forces = derive_scalar_wrt_array(fun, xyzs.to_tensor().numpy(),
-                                                 dx=1e-2)
+            # Force is the negative gradient
+            num_forces = -derive_scalar_wrt_array(fun,
+                                                  xyzs.to_tensor().numpy(),
+                                                  dx=1e-2)
 
             np.testing.assert_allclose(forces.to_tensor().numpy(),
                                        num_forces, atol=atol)
@@ -67,26 +69,33 @@ class ModelTest():
             """"""
             tf.keras.backend.clear_session()
             tf.keras.backend.set_floatx('float64')
-            # Number of atoms
-            N = 4
-            # Random input
-            xyzs = tf.RaggedTensor.from_tensor(
-                tf.random.normal((1, N, 3), dtype=tf.float64), lengths=[N])
-            types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+            # Try finally block to ensure that the floatx type is reset
+            # correctly
+            try:
+                # Number of atoms
+                N = 4
+                # Random input
+                xyzs = tf.RaggedTensor.from_tensor(
+                    tf.random.normal((1, N, 3), dtype=tf.float64), lengths=[N])
+                types = tf.ragged.constant([[[0], [1], [0], [1]]],
+                                           ragged_rank=1)
 
-            model = self.get_random_model(atom_types=['Ni', 'Pt'])
-            _, forces = model({'positions': xyzs, 'types': types})
+                model = self.get_random_model(atom_types=['Ni', 'Pt'])
+                _, forces = model({'positions': xyzs, 'types': types})
 
-            def fun(x):
-                """ Model puts out energy_per_atom, which has to be multiplied
-                    by N to get the total energy"""
-                xyzs = tf.RaggedTensor.from_tensor(x, lengths=[N])
-                return N*model({'positions': xyzs, 'types': types})[0]
-            num_forces = derive_scalar_wrt_array(fun, xyzs.to_tensor().numpy())
+                def fun(x):
+                    """ Model puts out energy_per_atom, which has to be
+                        multiplied by N to get the total energy"""
+                    xyzs = tf.RaggedTensor.from_tensor(x, lengths=[N])
+                    return N*model({'positions': xyzs, 'types': types})[0]
+                # Force is the negative gradient
+                num_forces = -derive_scalar_wrt_array(fun,
+                                                      xyzs.to_tensor().numpy())
 
-            np.testing.assert_allclose(forces.to_tensor().numpy(),
-                                       num_forces, atol=atol)
-            tf.keras.backend.set_floatx('float32')
+                np.testing.assert_allclose(forces.to_tensor().numpy(),
+                                           num_forces, atol=atol)
+            finally:
+                tf.keras.backend.set_floatx('float32')
 
 
 class SMATBTest(ModelTest.ModelTest):

@@ -57,10 +57,10 @@ class EAMPotential(tf.keras.Model):
             distances.nested_row_splits, name='dE_dr')
         # dr_dx.shape = (batch_size, None, None, None, 3)
         # dE_dr.shape = (batch_size, None, None, 1)
-        # Sum over atom indices i and j:
-        gradients = tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
-                                  axis=(-3, -4), name='dE_dr_times_dr_dx')
-        return energy_per_atom, gradients
+        # Sum over atom indices i and j. Force is the negative gradient.
+        forces = -tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
+                                axis=(-3, -4), name='dE_dr_times_dr_dx')
+        return energy_per_atom, forces
 
     @tf.function
     def body_partition_stitch(self, types, distances, pair_types):
