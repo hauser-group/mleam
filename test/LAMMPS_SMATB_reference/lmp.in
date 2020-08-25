@@ -1,0 +1,15 @@
+units          metal
+dimension      3
+atom_style     atomic
+boundary       f  f  f
+
+pair_style eam/fs
+
+read_data      data.NiPt
+
+pair_coeff * * NiPt.eam.fs Ni Pt
+
+dump 1 all custom 1 dump.force id type fx fy fz
+dump_modify 1 sort id
+
+run 0
