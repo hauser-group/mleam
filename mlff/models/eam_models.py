@@ -166,6 +166,7 @@ class DeepEAMPotential(EAMPotential):
     # LookupError: No gradient defined for operation
     # 'map/RaggedFromVariant_2/RaggedTensorFromVariant'
     # (op type: RaggedTensorFromVariant)
+    # Github Issue: https://github.com/tensorflow/tensorflow/issues/42189
     # @tf.function
     def call(self, inputs):
         types = inputs['types']
