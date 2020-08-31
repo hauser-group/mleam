@@ -22,6 +22,18 @@ class PolynomialCutoffFunction(tf.keras.layers.Layer):
         return tf.where(tf.less_equal(r, self.a), tf.ones_like(r), result)
 
 
+class OffsetLayer(tf.keras.layers.Layer):
+
+    def __init__(self, type, trainable=False, **kwargs):
+        super().__init__(**kwargs)
+        self.offset = self.add_weight(
+            shape=(1), name='%s_offset' % type, trainable=trainable,
+            initializer=tf.zeros_initializer())
+
+    def call(self, inp):
+        return self.offset*tf.ones_like(inp)
+
+
 class InputNormalization(tf.keras.layers.Layer):
     """ Computes (r/r0 - 1). This is done in a separate layer in order
     to share the r0 weight.

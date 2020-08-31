@@ -2,7 +2,7 @@ import tensorflow as tf
 from itertools import combinations_with_replacement
 from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
                          InputNormalization, BornMayer, RhoExp, RhoNN,
-                         SqrtEmbedding, NNSqrtEmbedding)
+                         SqrtEmbedding, NNSqrtEmbedding, OffsetLayer)
 from mlff.utils import distances_and_pair_types
 
 
@@ -12,13 +12,13 @@ class EAMPotential(tf.keras.Model):
     def __init__(self, atom_types, build_forces=False):
         super().__init__()
 
-        self.atom_types = sorted(atom_types)
+        self.atom_types = atom_types
         self.atom_pair_types = []
         for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
             self.atom_pair_types.append(''.join([t1, t2]))
         self.build_forces = build_forces
         (self.pair_potentials, self.pair_rho,
-         self.embedding_functions) = self.build_functions()
+         self.embedding_functions, self.offsets) = self.build_functions()
 
     def build_functions(self):
         pass
@@ -98,15 +98,16 @@ class EAMPotential(tf.keras.Model):
         type_indices = tf.dynamic_partition(
             tf.expand_dims(tf.range(tf.size(sum_rho)), -1),
             types.flat_values, len(self.atom_types), name='type_indices')
+        # energy offset is added here
         embedding_energies = [
-            self.embedding_functions[t](rho_t)
+            self.embedding_functions[t](rho_t) + self.offsets[t](rho_t)
             for t, rho_t in zip(self.atom_types, partitioned_sum_rho)]
-        atomic_energies = (
-            sum_phi.flat_values
-            + tf.expand_dims(
-                tf.dynamic_stitch(type_indices, embedding_energies,
-                                  name='embedding_energies'),
-                -1))
+        embedding_energies = tf.expand_dims(
+            tf.dynamic_stitch(type_indices, embedding_energies,
+                              name='embedding_energies'),
+            -1)
+
+        atomic_energies = sum_phi.flat_values + embedding_energies
         # Reshape to ragged
         atomic_energies = tf.RaggedTensor.from_row_splits(
             atomic_energies, types.row_splits, name='atomic_energies')
@@ -260,10 +261,11 @@ class SMATB(DeepEAMPotential):
                 name='%s-phi' % type_i)
             pair_rho[type_i] = PairInteraction(
                 normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
-        embedding_functions = {}
-        for t in self.atom_types:
-            embedding_functions[t] = self.get_embedding(t)
-        return pair_potentials, pair_rho, embedding_functions
+        embedding_functions = {t: self.get_embedding(t)
+                               for t in self.atom_types}
+        offsets = {t: OffsetLayer(t, self.offset_trainable)
+                   for t in self.atom_types}
+        return pair_potentials, pair_rho, embedding_functions, offsets
 
     def get_pair_potential(self, pair_type):
         return BornMayer(pair_type, A=self.params.get(('A', pair_type), 0.2),
