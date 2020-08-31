@@ -66,8 +66,8 @@ class BehlerParrinelloTest(unittest.TestCase):
 
         # Save weights again for debugging
         model.save_weights('./tmp_model.h5')
-        np.testing.assert_allclose(energy.numpy(), energy_ref)
-        np.testing.assert_allclose(forces.numpy(), forces_ref)
+        np.testing.assert_allclose(energy.numpy(), energy_ref, atol=1e-6)
+        np.testing.assert_allclose(forces.numpy(), forces_ref, atol=1e-6)
 
 
 if __name__ == '__main__':
