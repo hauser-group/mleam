@@ -4,15 +4,18 @@ from mlff.layers import AtomicNeuralNetwork
 
 class BehlerParrinello(tf.keras.Model):
 
-    def __init__(self, atom_types, num_Gs, layers=None, build_forces=False):
+    def __init__(self, atom_types, num_Gs, layers=None, reg=None,
+                 build_forces=False):
         super().__init__()
-        self.atom_types = sorted(atom_types)
+        self.atom_types = atom_types
         self.num_Gs = num_Gs
         self.build_forces = build_forces
         layers = layers or {t: [20, 20] for t in atom_types}
 
         self.atomic_neural_nets = {
-            t: AtomicNeuralNetwork(layers[t]) for t in atom_types}
+            t: AtomicNeuralNetwork(
+                layers[t], reg=reg, name='%s-ANN' % t)
+            for t in atom_types}
 
         types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
         Gs = tf.keras.Input(shape=(None, None), ragged=True)

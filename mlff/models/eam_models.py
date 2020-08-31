@@ -225,8 +225,8 @@ class ShallowEAMPotential(EAMPotential):
 
 class SMATB(DeepEAMPotential):
 
-    def __init__(self, atom_types, params={},
-                 r0_trainable=False, **kwargs):
+    def __init__(self, atom_types, params={}, r0_trainable=False,
+                 offset_trainable=True, reg=None, **kwargs):
         """TODO: __init__ can not be called with params={}: raises
         tensorflow error"""
         # Determine the maximum cutoff value to pass to DeepEAMPotential.
@@ -237,6 +237,8 @@ class SMATB(DeepEAMPotential):
                       for key in params if key[0] == 'cut_b'] or [7.5])
         self.params = params
         self.r0_trainable = r0_trainable
+        self.offset_trainable = offset_trainable
+        self.reg = reg
         super().__init__(atom_types, cutoff=cutoff, **kwargs)
 
     def build_functions(self):
@@ -280,7 +282,7 @@ class NNEmbeddingModel(SMATB):
     def get_embedding(self, type):
         return NNSqrtEmbedding(
             layers=self.params.get(('F_layers', type), [20, 20]),
-            name='%s-Embedding' % type)
+            reg=self.reg, name='%s-Embedding' % type)
 
 
 class NNRhoModel(SMATB):
@@ -288,7 +290,8 @@ class NNRhoModel(SMATB):
     def get_rho(self, pair_type):
         return RhoNN(
             pair_type,
-            layers=self.params.get(('rho_layers', pair_type), [20, 20]))
+            layers=self.params.get(('rho_layers', pair_type), [20, 20]),
+            reg=self.reg)
 
 
 class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):

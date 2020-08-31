@@ -74,12 +74,15 @@ class RhoExp(tf.keras.layers.Layer):
 
 class RhoNN(tf.keras.layers.Layer):
 
-    def __init__(self, types, layers=[20, 20], **kwargs):
+    def __init__(self, types, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
         self.dense_layers = []
+        if reg:
+            reg = tf.keras.regularizers.L2(l2=reg)
         for n in layers:
             self.dense_layers.append(tf.keras.layers.Dense(
-                n, activation='tanh'))
+                n, activation='tanh', kernel_regularizer=reg))
+        # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
     @tf.function
@@ -121,12 +124,15 @@ class SqrtEmbedding(tf.keras.layers.Layer):
 
 class NNSqrtEmbedding(tf.keras.layers.Layer):
 
-    def __init__(self, layers=[20, 20], **kwargs):
+    def __init__(self, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
         self.dense_layers = []
+        if reg:
+            reg = tf.keras.regularizers.L2(l2=reg)
         for n in layers:
             self.dense_layers.append(tf.keras.layers.Dense(
-                n, activation='tanh'))
+                n, activation='tanh', kernel_regularizer=reg))
+        # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
     @tf.function
@@ -140,12 +146,14 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
 
 class AtomicNeuralNetwork(tf.keras.layers.Layer):
 
-    def __init__(self, layers=[20, 20], **kwargs):
+    def __init__(self, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
         self.dense_layers = []
+        if reg:
+            reg = tf.keras.regularizers.L2(l2=reg)
         for n in layers:
             self.dense_layers.append(tf.keras.layers.Dense(
-                n, activation='tanh'))
+                n, activation='tanh', kernel_regularizer=reg))
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
