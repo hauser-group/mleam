@@ -84,7 +84,7 @@ class RhoExp(tf.keras.layers.Layer):
         return self.xi**2*tf.exp(-2*self.q*r_normalized)
 
 
-class RhoNN(tf.keras.layers.Layer):
+class NNRhoSquared(tf.keras.layers.Layer):
 
     def __init__(self, types, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
@@ -105,6 +105,29 @@ class RhoNN(tf.keras.layers.Layer):
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
         return tf.squeeze(nn_results, axis=-1)**2
+
+
+class NNRhoExp(tf.keras.layers.Layer):
+
+    def __init__(self, types, layers=[20, 20], reg=None, **kwargs):
+        super().__init__(**kwargs)
+        self.dense_layers = []
+        if reg:
+            reg = tf.keras.regularizers.L2(l2=reg)
+        for n in layers:
+            self.dense_layers.append(tf.keras.layers.Dense(
+                n, activation='tanh', kernel_regularizer=reg))
+        # Last layer is linear
+        self.dense_layers.append(tf.keras.layers.Dense(1))
+
+    @tf.function
+    def call(self, r_normalized):
+        """r_normalized.shape = (None,)"""
+        nn_results = self.dense_layers[0](
+            tf.expand_dims(r_normalized, axis=-1))
+        for layer in self.dense_layers[1:]:
+            nn_results = layer(nn_results)
+        return tf.exp(tf.squeeze(nn_results, axis=-1))
 
 
 class PairInteraction(tf.keras.layers.Layer):

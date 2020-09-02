@@ -1,8 +1,8 @@
 import tensorflow as tf
 from itertools import combinations_with_replacement
 from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
-                         InputNormalization, BornMayer, RhoExp, RhoNN,
-                         SqrtEmbedding, NNSqrtEmbedding, OffsetLayer)
+                         InputNormalization, BornMayer, RhoExp, NNRhoSquared,
+                         NNRhoExp, SqrtEmbedding, NNSqrtEmbedding, OffsetLayer)
 from mlff.utils import distances_and_pair_types
 
 
@@ -287,14 +287,23 @@ class NNEmbeddingModel(SMATB):
             reg=self.reg, name='%s-Embedding' % type)
 
 
-class NNRhoModel(SMATB):
+class NNRhoSquaredModel(SMATB):
 
     def get_rho(self, pair_type):
-        return RhoNN(
+        return NNRhoSquared(
             pair_type,
             layers=self.params.get(('rho_layers', pair_type), [20, 20]),
             reg=self.reg)
 
 
-class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):
+class NNRhoExpModel(SMATB):
+
+    def get_rho(self, pair_type):
+        return NNRhoExp(
+            pair_type,
+            layers=self.params.get(('rho_layers', pair_type), [20, 20]),
+            reg=self.reg)
+
+
+class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoSquaredModel):
     """Combination of NNEmbeddingModel and NNRhoModel"""
