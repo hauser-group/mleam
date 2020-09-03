@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 from mlff.models import (SMATB, NNEmbeddingModel, NNRhoSquaredModel,
-                         NNRhoExpModel, NNEmbeddingNNRhoModel)
+                         NNRhoExpModel, NNEmbeddingNNRhoExpModel)
 from utils import derive_scalar_wrt_array
 
 
@@ -200,16 +200,17 @@ class NNRhoExpModelTest(ModelTest.ModelTest):
         return model
 
 
-class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
+class NNEmbeddingNNRhoExpModelTest(ModelTest.ModelTest):
 
     def get_model(self, atom_types=['Ni', 'Pt']):
-        return NNEmbeddingNNRhoModel(atom_types,
-                                     params={('F_layers', 'Ni'): [12, 8],
-                                             ('F_layers', 'Pt'): [6, 8, 4],
-                                             ('rho_layers', 'PtPt'): [16],
-                                             ('rho_layers', 'NiNi'): [12, 8],
-                                             ('rho_layers', 'NiPt'): [6, 8, 4]
-                                             }, build_forces=True)
+        return NNEmbeddingNNRhoExpModel(
+            atom_types,
+            params={('F_layers', 'Ni'): [12, 8],
+                    ('F_layers', 'Pt'): [6, 8, 4],
+                    ('rho_layers', 'PtPt'): [16],
+                    ('rho_layers', 'NiNi'): [12, 8],
+                    ('rho_layers', 'NiPt'): [6, 8, 4]
+                    }, build_forces=True)
 
     def get_random_model(self, atom_types=['Ni', 'Pt']):
         # Generate 12 random positive numbers for the SMATB parameters
@@ -226,8 +227,8 @@ class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
             ('F_layers', 'Ni'): [12, 8], ('F_layers', 'Pt'): [6, 8, 4],
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
-        model = NNEmbeddingNNRhoModel(atom_types, params=params,
-                                      build_forces=True)
+        model = NNEmbeddingNNRhoExpModel(atom_types, params=params,
+                                         build_forces=True)
 
         return model
 

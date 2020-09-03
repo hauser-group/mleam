@@ -1,6 +1,6 @@
 from .eam_models import (SMATB, NNEmbeddingModel, NNRhoSquaredModel,
-                         NNRhoExpModel, NNEmbeddingNNRhoModel)
+                         NNRhoExpModel, NNEmbeddingNNRhoExpModel)
 from .bp_model import BehlerParrinello
 
 __all__ = ['SMATB', 'NNEmbeddingModel', 'NNRhoSquaredModel', 'NNRhoExpModel',
-           'NNEmbeddingNNRhoModel', 'BehlerParrinello']
+           'NNEmbeddingNNRhoExpModel', 'BehlerParrinello']

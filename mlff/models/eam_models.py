@@ -305,5 +305,5 @@ class NNRhoExpModel(SMATB):
             reg=self.reg)
 
 
-class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoSquaredModel):
-    """Combination of NNEmbeddingModel and NNRhoModel"""
+class NNEmbeddingNNRhoExpModel(NNEmbeddingModel, NNRhoExpModel):
+    """Combination of NNEmbeddingModel and NNRhoExpModel"""
