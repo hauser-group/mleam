@@ -92,3 +92,20 @@ def distances_with_gradient(xyz):
         tf.reshape(gradient[mask], (-1, 3)),
         ((n-1)*tf.ones(n, dtype=tf.int64), n*tf.ones(n*(n-1), dtype=tf.int64)))
     return tf.ragged.boolean_mask(distances, mask), gradient
+
+
+class ConstantExponentialDecay(tf.keras.optimizers.schedules.ExponentialDecay):
+    def __init__(self, constant_steps=0, **kwargs):
+        super().__init__(**kwargs)
+        self.constant_steps = constant_steps
+
+    @tf.function
+    def __call__(self, step):
+        return tf.where(step <= self.constant_steps,
+                        self.initial_learning_rate,
+                        super().__call__(step - self.constant_steps))
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({'constant_steps': self.constant_steps})
+        return config
