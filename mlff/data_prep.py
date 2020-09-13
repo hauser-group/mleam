@@ -4,7 +4,8 @@ import json
 from mlff.utils import distances_and_pair_types
 
 
-def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None):
+def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None,
+                      floatx=tf.float32):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -19,8 +20,9 @@ def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None):
             axis=-1),
          'positions': tf.ragged.constant(data['positions'], ragged_rank=1)})
 
-    N = tf.constant([len(sym) for sym in data['symbols']], dtype=tf.float32)
-    energy_per_atom = tf.constant(data['e_dft_bond'], dtype=tf.float32)/N
+    N = tf.constant([len(sym) for sym in data['symbols']], dtype=floatx)
+    energy_per_atom = tf.expand_dims(
+        tf.constant(data['e_dft_bond'], dtype=floatx)/N, axis=-1)
     output_dataset = tf.data.Dataset.from_tensor_slices(
         (energy_per_atom,
          tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
@@ -37,7 +39,8 @@ def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None):
 
 
 def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
-                                   batch_size=None, buffer_size=None):
+                                   batch_size=None, buffer_size=None,
+                                   floatx=tf.float32):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -62,8 +65,9 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
     input_dataset = input_dataset.map(
         input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    N = tf.constant([len(sym) for sym in data['symbols']], dtype=tf.float32)
-    energy_per_atom = tf.constant(data['e_dft_bond'], dtype=tf.float32)/N
+    N = tf.constant([len(sym) for sym in data['symbols']], dtype=floatx)
+    energy_per_atom = tf.expand_dims(
+        tf.constant(data['e_dft_bond'], dtype=floatx)/N, axis=-1)
     output_dataset = tf.data.Dataset.from_tensor_slices(
         (energy_per_atom,
          tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
@@ -80,7 +84,8 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
 
 
 def descriptor_dataset_from_json(path, descriptor_set,
-                                 batch_size=None, buffer_size=None):
+                                 batch_size=None, buffer_size=None,
+                                 floatx=tf.float32):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -103,14 +108,15 @@ def descriptor_dataset_from_json(path, descriptor_set,
     input_dataset = tf.data.Dataset.from_generator(
         gen,
         {'types': tf.int32,
-         'Gs': tf.float32,
-         'dGs': tf.float32},
+         'Gs': floatx,
+         'dGs': floatx},
         {'types': tf.TensorShape([None, 1]),
          'Gs': tf.TensorShape([None, None]),
          'dGs': tf.TensorShape([None, None, None, 3])})
 
-    N = tf.constant([len(sym) for sym in data['symbols']], dtype=tf.float32)
-    energy_per_atom = tf.constant(data['e_dft_bond'], dtype=tf.float32)/N
+    N = tf.constant([len(sym) for sym in data['symbols']], dtype=floatx)
+    energy_per_atom = tf.expand_dims(
+        tf.constant(data['e_dft_bond'], dtype=floatx)/N, axis=-1)
     output_dataset = tf.data.Dataset.from_tensor_slices(
         (energy_per_atom,
          tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
