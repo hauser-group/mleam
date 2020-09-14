@@ -9,7 +9,8 @@ from mlff.utils import distances_and_pair_types
 class EAMPotential(tf.keras.Model):
     """Base class for all EAM based potentials"""
 
-    def __init__(self, atom_types, build_forces=False):
+    def __init__(self, atom_types, build_forces=False,
+                 preprocessed_input=False, cutoff=10.):
         super().__init__()
 
         self.atom_types = atom_types
@@ -17,11 +18,69 @@ class EAMPotential(tf.keras.Model):
         for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
             self.atom_pair_types.append(''.join([t1, t2]))
         self.build_forces = build_forces
+        self.preprocessed_input = preprocessed_input
+
+        inputs = {'types': tf.keras.Input(shape=(None, 1), ragged=True,
+                                          dtype=tf.int32)}
+        if self.preprocessed_input:
+            inputs['pair_types'] = tf.keras.Input(shape=(None, None, 1),
+                                                  ragged=True,
+                                                  dtype=inputs['types'].dtype)
+            inputs['distances'] = tf.keras.Input(shape=(None, None, 1),
+                                                 ragged=True)
+            if self.build_forces:
+                # [batchsize] x N x (N-1) x N x 3
+                inputs['dr_dx'] = tf.keras.Input(shape=(None, None, None, 3),
+                                                 ragged=True)
+        else:
+            self.cutoff = cutoff
+            inputs['positions'] = tf.keras.Input(shape=(None, 3), ragged=True)
+
+        self._set_inputs(inputs)
+
         (self.pair_potentials, self.pair_rho,
          self.embedding_functions, self.offsets) = self.build_functions()
 
     def build_functions(self):
         pass
+
+    def call(self, inputs):
+        if self.preprocessed_input:
+            return self.shallow_call(inputs)
+        return self.deep_call(inputs)
+
+    def deep_call(self, inputs):
+        types = inputs['types']
+        positions = inputs['positions']
+        distances, pair_types, dr_dx = tf.map_fn(
+            lambda x: distances_and_pair_types(
+                x[0], x[1], len(self.atom_types), self.cutoff),
+            (positions, types),
+            fn_output_signature=(
+                tf.RaggedTensorSpec(shape=[None, None, 1], ragged_rank=1,
+                                    dtype=positions.dtype),
+                tf.RaggedTensorSpec(shape=[None, None, 1], ragged_rank=1,
+                                    dtype=types.dtype),
+                tf.RaggedTensorSpec(shape=[None, None, None, 3], ragged_rank=2,
+                                    dtype=positions.dtype))
+            )
+
+        if self.build_forces:
+            return self.main_body_with_forces(types, distances,
+                                              pair_types, dr_dx)
+        return self.main_body_no_forces(types, distances, pair_types)
+
+    @tf.function
+    def shallow_call(self, inputs):
+        types = inputs['types']
+        distances = inputs['distances']
+        pair_types = inputs['pair_types']
+
+        if self.build_forces:
+            dr_dx = inputs['dr_dx']
+            return self.main_body_with_forces(types, distances,
+                                              pair_types, dr_dx)
+        return self.main_body_no_forces(types, distances, pair_types)
 
     @tf.function
     def main_body_no_forces(self, types, distances, pair_types):
@@ -151,80 +210,7 @@ class EAMPotential(tf.keras.Model):
         return tf.reduce_sum(atomic_energies, axis=-2, name='energy')
 
 
-class DeepEAMPotential(EAMPotential):
-
-    def __init__(self, atom_types, cutoff=10.0, **kwargs):
-        super().__init__(atom_types, **kwargs)
-
-        self.cutoff = cutoff
-        types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
-        positions = tf.keras.Input(shape=(None, 3), ragged=True)
-        inputs = {'types': types, 'positions': positions}
-
-        self._set_inputs(inputs)
-
-    # using tf.function raises:
-    # LookupError: No gradient defined for operation
-    # 'map/RaggedFromVariant_2/RaggedTensorFromVariant'
-    # (op type: RaggedTensorFromVariant)
-    # Github Issue: https://github.com/tensorflow/tensorflow/issues/42189
-    # @tf.function
-    def call(self, inputs):
-        types = inputs['types']
-        positions = inputs['positions']
-        distances, pair_types, dr_dx = tf.map_fn(
-            lambda x: distances_and_pair_types(
-                x[0], x[1], len(self.atom_types), self.cutoff),
-            (positions, types),
-            fn_output_signature=(tf.RaggedTensorSpec(
-                                    shape=[None, None, 1], ragged_rank=1,
-                                    dtype=positions.dtype),
-                                 tf.RaggedTensorSpec(
-                                    shape=[None, None, 1], ragged_rank=1,
-                                    dtype=types.dtype),
-                                 tf.RaggedTensorSpec(
-                                    shape=[None, None, None, 3],
-                                    ragged_rank=2, dtype=positions.dtype))
-            )
-
-        if self.build_forces:
-            return self.main_body_with_forces(types, distances,
-                                              pair_types, dr_dx)
-        return self.main_body_no_forces(types, distances, pair_types)
-
-
-class ShallowEAMPotential(EAMPotential):
-
-    def __init__(self, atom_types, cutoff=None, **kwargs):
-        """The cutoff argument is only for compatibility"""
-        super().__init__(atom_types, **kwargs)
-        types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
-        distances = tf.keras.Input(shape=(None, None, 1), ragged=True)
-        pair_types = tf.keras.Input(shape=(None, None, 1), ragged=True,
-                                    dtype=types.dtype)
-        inputs = {'types': types, 'pair_types': pair_types,
-                  'distances': distances}
-        if self.build_forces:
-            # [batchsize] x N x (N-1) x N x 3
-            inputs['dr_dx'] = tf.keras.Input(shape=(None, None, None, 3),
-                                             ragged=True)
-
-        self._set_inputs(inputs)
-
-    @tf.function
-    def call(self, inputs):
-        types = inputs['types']
-        distances = inputs['distances']
-        pair_types = inputs['pair_types']
-
-        if self.build_forces:
-            dr_dx = inputs['dr_dx']
-            return self.main_body_with_forces(types, distances,
-                                              pair_types, dr_dx)
-        return self.main_body_no_forces(types, distances, pair_types)
-
-
-class SMATB(DeepEAMPotential):
+class SMATB(EAMPotential):
 
     def __init__(self, atom_types, params={}, r0_trainable=False,
                  offset_trainable=True, reg=None, **kwargs):
