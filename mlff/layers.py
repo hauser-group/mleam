@@ -3,13 +3,13 @@ import tensorflow as tf
 
 class PolynomialCutoffFunction(tf.keras.layers.Layer):
 
-    def __init__(self, types, a=5.0, b=7.5, trainable=False, **kwargs):
+    def __init__(self, pair_type, a=5.0, b=7.5, trainable=False, **kwargs):
         super().__init__(**kwargs)
         self.a = self.add_weight(
-            shape=(1), name='cut_a_' + types, trainable=trainable,
+            shape=(1), name='cut_a_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(a))
         self.b = self.add_weight(
-            shape=(1), name='cut_b_' + types, trainable=trainable,
+            shape=(1), name='cut_b_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(b))
 
     @tf.function
@@ -38,10 +38,10 @@ class InputNormalization(tf.keras.layers.Layer):
     """ Computes (r/r0 - 1). This is done in a separate layer in order
     to share the r0 weight.
     """
-    def __init__(self, types, r0=2.7, trainable=False, **kwargs):
+    def __init__(self, pair_type, r0=2.7, trainable=False, **kwargs):
         super().__init__(**kwargs)
         self.r0 = self.add_weight(
-            shape=(1), name='r0_' + types, trainable=trainable,
+            shape=(1), name='r0_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(r0))
 
     @tf.function
@@ -51,13 +51,13 @@ class InputNormalization(tf.keras.layers.Layer):
 
 class BornMayer(tf.keras.layers.Layer):
 
-    def __init__(self, types, A=0.2, p=9.2, **kwargs):
+    def __init__(self, pair_type, A=0.2, p=9.2, **kwargs):
         super().__init__(**kwargs)
         self.A = self.add_weight(
-            shape=(1), name='A_' + types,
+            shape=(1), name='A_' + pair_type,
             initializer=tf.constant_initializer(A))
         self.p = self.add_weight(
-            shape=(1), name='p_' + types,
+            shape=(1), name='p_' + pair_type,
             initializer=tf.constant_initializer(p))
         self._supports_ragged_inputs = True
 
@@ -68,13 +68,13 @@ class BornMayer(tf.keras.layers.Layer):
 
 class RhoExp(tf.keras.layers.Layer):
 
-    def __init__(self, types, xi=1.6, q=3.5, **kwargs):
+    def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
         self.xi = self.add_weight(
-            shape=(1), name='xi_' + types,
+            shape=(1), name='xi_' + pair_type,
             initializer=tf.constant_initializer(xi))
         self.q = self.add_weight(
-            shape=(1), name='q_' + types,
+            shape=(1), name='q_' + pair_type,
             initializer=tf.constant_initializer(q))
         self._supports_ragged_inputs = True
 
@@ -86,7 +86,7 @@ class RhoExp(tf.keras.layers.Layer):
 
 class NNRhoSquared(tf.keras.layers.Layer):
 
-    def __init__(self, types, layers=[20, 20], reg=None, **kwargs):
+    def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
         self.dense_layers = []
         if reg:
@@ -109,7 +109,7 @@ class NNRhoSquared(tf.keras.layers.Layer):
 
 class NNRhoExp(tf.keras.layers.Layer):
 
-    def __init__(self, types, layers=[20, 20], reg=None, **kwargs):
+    def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
         self.dense_layers = []
         if reg:
