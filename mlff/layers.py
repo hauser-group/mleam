@@ -15,11 +15,36 @@ class PolynomialCutoffFunction(tf.keras.layers.Layer):
     @tf.function
     def call(self, r):
         r_scaled = (r - self.a)/(self.b - self.a)
+        # Ugly workaround to avoid zeros in the atom density rho which leads
+        # to infinite gradients in the embedding function -sqrt(rho)
         result = tf.where(
             tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b)),
             1.0 - 10.0 * r_scaled**3 + 15 * r_scaled**4 - 6 * r_scaled**5,
-            tf.zeros_like(r))
+            1e-30*tf.ones_like(r))
         return tf.where(tf.less_equal(r, self.a), tf.ones_like(r), result)
+
+
+class PolynomialCutoffFunctionMask(tf.keras.layers.Layer):
+
+    def __init__(self, pair_type, a=5.0, b=7.5, trainable=False, **kwargs):
+        super().__init__(**kwargs)
+        self.a = self.add_weight(
+            shape=(1), name='cut_a_' + pair_type, trainable=trainable,
+            initializer=tf.constant_initializer(a))
+        self.b = self.add_weight(
+            shape=(1), name='cut_b_' + pair_type, trainable=trainable,
+            initializer=tf.constant_initializer(b))
+
+    @tf.function
+    def call(self, r):
+        result = tf.where(
+            tf.less_equal(r, self.a), tf.ones_like(r), tf.zeros_like(r))
+        cond = tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b))
+        idx = tf.where(cond)
+        r_scaled = tf.boolean_mask((r - self.a)/(self.b - self.a), cond)
+        updates = 1.0 - 10.0 * r_scaled**3 + 15 * r_scaled**4 - 6 * r_scaled**5
+        result = tf.tensor_scatter_nd_update(result, idx, updates)
+        return result
 
 
 class OffsetLayer(tf.keras.layers.Layer):
@@ -46,7 +71,7 @@ class InputNormalization(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, r):
-        return r/self.r0 - 1
+        return r/self.r0 - 1.0
 
 
 class BornMayer(tf.keras.layers.Layer):
@@ -199,3 +224,16 @@ class AtomicNeuralNetwork(tf.keras.layers.Layer):
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
         return nn_results
+
+
+class MinMaxDescriptorNorm(tf.keras.layers.Layer):
+
+    def __init__(self, Gs_min, Gs_max, **kwargs):
+        super().__init__(**kwargs)
+        self.Gs_min = Gs_min
+        self.Gs_max = Gs_max
+
+    @tf.function
+    def call(self, Gs):
+        """Gs.shape = (None, num_Gs)"""
+        return (Gs - self.Gs_min)/(self.Gs_max - self.Gs_min) - 1
