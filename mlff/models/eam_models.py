@@ -150,6 +150,10 @@ class EAMPotential(tf.keras.Model):
         sum_rho = tf.reduce_sum(rho, axis=-2, name='sum_rho')
         sum_phi = tf.reduce_sum(phi, axis=-2, name='sum_phi')
 
+        # Make sure that sum_rho is never exactly zero since this leads to
+        # problems in the gradient of the square root embedding function
+        sum_rho = tf.math.maximum(sum_rho, 1e-30)
+
         # Embedding energy
         partitioned_sum_rho = tf.dynamic_partition(
             sum_rho, types, len(self.atom_types),

@@ -15,12 +15,10 @@ class PolynomialCutoffFunction(tf.keras.layers.Layer):
     @tf.function
     def call(self, r):
         r_scaled = (r - self.a)/(self.b - self.a)
-        # Ugly workaround to avoid zeros in the atom density rho which leads
-        # to infinite gradients in the embedding function -sqrt(rho)
         result = tf.where(
             tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b)),
             1.0 - 10.0 * r_scaled**3 + 15 * r_scaled**4 - 6 * r_scaled**5,
-            1e-30*tf.ones_like(r))
+            tf.zeros_like(r))
         return tf.where(tf.less_equal(r, self.a), tf.ones_like(r), result)
 
 
