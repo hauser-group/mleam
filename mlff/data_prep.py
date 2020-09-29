@@ -85,7 +85,7 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
 
 def descriptor_dataset_from_json(path, descriptor_set,
                                  batch_size=None, buffer_size=None,
-                                 floatx=tf.float32):
+                                 floatx=tf.float32, Gs_min=None, Gs_max=None):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -103,6 +103,12 @@ def descriptor_dataset_from_json(path, descriptor_set,
         for i in range(len(data['symbols'])):
             Gs, dGs = descriptor_set.eval_with_derivatives_atomwise(
                 data['symbols'][i], np.array(data['positions'][i]))
+            if Gs_min and Gs_max:
+                Gs = [2. * (Gs[j] - Gs_min[tj])/(Gs_max[tj] - Gs_min[tj]) - 1.
+                      for j, tj in enumerate(data['symbols'][i])]
+                dGs = [2. * dGs[j]/np.expand_dims(Gs_max[tj] - Gs_min[tj],
+                                                  (1, 2))
+                       for j, tj in enumerate(data['symbols'][i])]
             yield dict(types=types[i], Gs=Gs, dGs=dGs)
 
     input_dataset = tf.data.Dataset.from_generator(
