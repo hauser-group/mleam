@@ -3,10 +3,7 @@ __pycache__/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-notebooks/logs
-notebooks/saved_models
-notebooks/logs_archive
-notebooks/saved_models_archive
+notebooks/
 
 # Saved test models
 test/*.h5
