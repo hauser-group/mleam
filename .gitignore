@@ -4,6 +4,7 @@ __pycache__/
 # Jupyter Notebook
 .ipynb_checkpoints
 notebooks/
+training/
 
 # Saved test models
 test/*.h5
