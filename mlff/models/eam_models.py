@@ -1,7 +1,7 @@
 import tensorflow as tf
 from itertools import combinations_with_replacement
-from mlff.layers import (PairInteraction, SmoothCutoffFunction,
-                         InputNormalization, BornMayer, RhoExp, NNRhoSquared,
+from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
+                         InputNormalization, BornMayer, RhoExp, NNRho,
                          NNRhoExp, SqrtEmbedding, NNSqrtEmbedding, OffsetLayer)
 from mlff.utils import distances_and_pair_types
 
@@ -240,7 +240,7 @@ class SMATB(EAMPotential):
             normalized_input = InputNormalization(
                 pair_type, r0=self.params.get(('r0', pair_type), 2.7),
                 trainable=self.r0_trainable)
-            cutoff_function = SmoothCutoffFunction(
+            cutoff_function = PolynomialCutoffFunction(
                 pair_type, a=self.params.get(('cut_a', pair_type), 5.0),
                 b=self.params.get(('cut_b', pair_type), 7.5))
             pair_potential = self.get_pair_potential(pair_type)

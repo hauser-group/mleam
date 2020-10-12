@@ -4,7 +4,7 @@ from atsim.potentials import EAMPotential, Potential
 from atsim.potentials.eam_tabulation import SetFL_FS_EAMTabulation
 
 
-def cutoff(r, a, b):
+def poly_cutoff(r, a, b):
     if r <= a:
         return 1.
     elif r > b:
@@ -15,20 +15,29 @@ def cutoff(r, a, b):
                 - 6 * r_scaled**5)
 
 
+def smooth_cutoff(r, a, b):
+    if r <= a:
+        return 1.
+    elif r >= b:
+        return 0.
+    else:
+        return 1./(1. + np.exp(((a - b)*(2*r - a - b))/((r - a)*(r - b))))
+
+
 def embedding_function(rho):
     return -np.sqrt(rho)
 
 
 def make_density(xi, q, r_0, a, b):
     def rho(r):
-        return xi**2 * np.exp(-2*q*(r/r_0 - 1)) * cutoff(r, a, b)
+        return (xi * np.exp(-q*(r/r_0 - 1)) * poly_cutoff(r, a, b))**2
     return rho
 
 
 def make_pair_pot(A, p, r_0, a, b):
     """Factor two to compensate for the 1/2 in the definition"""
     def phi(r):
-        return 2 * A * np.exp(-p*(r/r_0 - 1)) * cutoff(r, a, b)
+        return 2 * A * np.exp(-p*(r/r_0 - 1)) * poly_cutoff(r, a, b)
     return phi
 
 
