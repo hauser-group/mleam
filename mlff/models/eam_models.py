@@ -147,7 +147,7 @@ class EAMPotential(tf.keras.Model):
             rho, distances.nested_row_splits)
 
         # Sum over atoms j
-        sum_rho = tf.reduce_sum(rho, axis=-2, name='sum_rho')
+        sum_rho = tf.reduce_sum(rho**2, axis=-2, name='sum_rho')
         sum_phi = tf.reduce_sum(phi, axis=-2, name='sum_phi')
 
         # Make sure that sum_rho is never exactly zero since this leads to
@@ -200,7 +200,7 @@ class EAMPotential(tf.keras.Model):
             rho, distances.nested_row_splits)
         # Sum over atoms j and flatten again
         atomic_energies = tf.reduce_sum(phi, axis=-2).flat_values
-        sum_rho = tf.reduce_sum(rho, axis=-2).flat_values
+        sum_rho = tf.reduce_sum(rho**2, axis=-2).flat_values
         for i, t in enumerate(self.atom_types):
             indices = tf.where(tf.equal(types, i).flat_values)[:, 0]
             atomic_energies = tf.tensor_scatter_nd_add(
@@ -277,10 +277,10 @@ class NNEmbeddingModel(SMATB):
             reg=self.reg, name='%s-Embedding' % type)
 
 
-class NNRhoSquaredModel(SMATB):
+class NNRhoModel(SMATB):
 
     def get_rho(self, pair_type):
-        return NNRhoSquared(
+        return NNRho(
             pair_type,
             layers=self.params.get(('rho_layers', pair_type), [20, 20]),
             reg=self.reg)

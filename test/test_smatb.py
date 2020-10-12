@@ -62,7 +62,7 @@ class SMATBTest(unittest.TestCase):
         positions = tf.ragged.constant([positions], ragged_rank=1)
         energy, forces = model({'types': types, 'positions': positions})
 
-        np.testing.assert_allclose(energy.numpy()[0]*N, e_ref)
+        np.testing.assert_allclose(energy.numpy()[0]*N, e_ref, rtol=1e-6)
         np.testing.assert_allclose(forces.numpy()[0], forces_ref, atol=1e-5)
 
     def test_versus_ferrando_code(self):
@@ -98,7 +98,9 @@ class SMATBTest(unittest.TestCase):
         e_model, _ = model({'types': types, 'positions': positions})
         e_model = tf.squeeze(e_model)*Ns
 
-        np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-2)
+        # High tolerance since we know that the Ferrando code uses a different
+        # cutoff style
+        np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-3)
 
 
 if __name__ == '__main__':

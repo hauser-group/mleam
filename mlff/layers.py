@@ -130,10 +130,10 @@ class RhoExp(tf.keras.layers.Layer):
     @tf.function
     def call(self, r_normalized):
         """r_normalized.shape = (None,)"""
-        return self.xi**2*tf.exp(-2*self.q*r_normalized)
+        return self.xi*tf.exp(-self.q*r_normalized)
 
 
-class NNRhoSquared(tf.keras.layers.Layer):
+class NNRho(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
@@ -153,7 +153,7 @@ class NNRhoSquared(tf.keras.layers.Layer):
             tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
-        return tf.squeeze(nn_results, axis=-1)**2
+        return tf.squeeze(nn_results, axis=-1)
 
 
 class NNRhoExp(tf.keras.layers.Layer):
@@ -180,7 +180,7 @@ class NNRhoExp(tf.keras.layers.Layer):
 
 
 class PairInteraction(tf.keras.layers.Layer):
-    """Multiplies a pair-wise interaction with the cutoff function"""
+    """Normalizes the input and feeds it to a pair potential"""
 
     def __init__(self, input_normalization,
                  pair_interaction, cutoff_function, **kwargs):
