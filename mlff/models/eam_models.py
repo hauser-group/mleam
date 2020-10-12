@@ -1,6 +1,6 @@
 import tensorflow as tf
 from itertools import combinations_with_replacement
-from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
+from mlff.layers import (PairInteraction, SmoothCutoffFunction,
                          InputNormalization, BornMayer, RhoExp, NNRhoSquared,
                          NNRhoExp, SqrtEmbedding, NNSqrtEmbedding, OffsetLayer)
 from mlff.utils import distances_and_pair_types
@@ -236,20 +236,21 @@ class SMATB(EAMPotential):
         pair_potentials = {}
         pair_rho = {}
         for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
-            type_i = ''.join([t1, t2])
+            pair_type = ''.join([t1, t2])
             normalized_input = InputNormalization(
-                type_i, r0=self.params.get(('r0', type_i), 2.7),
+                pair_type, r0=self.params.get(('r0', pair_type), 2.7),
                 trainable=self.r0_trainable)
-            cutoff_function = PolynomialCutoffFunction(
-                type_i, a=self.params.get(('cut_a', type_i), 5.0),
-                b=self.params.get(('cut_b', type_i), 7.5))
-            pair_potential = self.get_pair_potential(type_i)
-            rho = self.get_rho(type_i)
-            pair_potentials[type_i] = PairInteraction(
+            cutoff_function = SmoothCutoffFunction(
+                pair_type, a=self.params.get(('cut_a', pair_type), 5.0),
+                b=self.params.get(('cut_b', pair_type), 7.5))
+            pair_potential = self.get_pair_potential(pair_type)
+            rho = self.get_rho(pair_type)
+            pair_potentials[pair_type] = PairInteraction(
                 normalized_input, pair_potential, cutoff_function,
-                name='%s-phi' % type_i)
-            pair_rho[type_i] = PairInteraction(
-                normalized_input, rho, cutoff_function, name='%s-rho' % type_i)
+                name='%s-phi' % pair_type)
+            pair_rho[pair_type] = PairInteraction(
+                normalized_input, rho, cutoff_function,
+                name='%s-rho' % pair_type)
         embedding_functions = {t: self.get_embedding(t)
                                for t in self.atom_types}
         offsets = {t: OffsetLayer(t, self.offset_trainable)
