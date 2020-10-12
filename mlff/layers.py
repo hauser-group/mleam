@@ -16,8 +16,8 @@ class PolynomialCutoffFunction(tf.keras.layers.Layer):
     def call(self, r):
         r_scaled = (r - self.a)/(self.b - self.a)
         result = tf.where(
-            tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b)),
-            1.0 - 10.0 * r_scaled**3 + 15 * r_scaled**4 - 6 * r_scaled**5,
+            tf.less(r, self.b),
+            1. - 10. * r_scaled**3 + 15. * r_scaled**4 - 6. * r_scaled**5,
             tf.zeros_like(r))
         return tf.where(tf.less_equal(r, self.a), tf.ones_like(r), result)
 
@@ -40,9 +40,35 @@ class PolynomialCutoffFunctionMask(tf.keras.layers.Layer):
         cond = tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b))
         idx = tf.where(cond)
         r_scaled = tf.boolean_mask((r - self.a)/(self.b - self.a), cond)
-        updates = 1.0 - 10.0 * r_scaled**3 + 15 * r_scaled**4 - 6 * r_scaled**5
+        updates = 1. - 10. * r_scaled**3 + 15. * r_scaled**4 - 6. * r_scaled**5
         result = tf.tensor_scatter_nd_update(result, idx, updates)
         return result
+
+
+class SmoothCutoffFunction(tf.keras.layers.Layer):
+
+    def __init__(self, pair_type, a=5.0, b=7.5, trainable=False, **kwargs):
+        super().__init__(**kwargs)
+        self.a = self.add_weight(
+            shape=(1), name='cut_a_' + pair_type, trainable=trainable,
+            initializer=tf.constant_initializer(a))
+        self.b = self.add_weight(
+            shape=(1), name='cut_b_' + pair_type, trainable=trainable,
+            initializer=tf.constant_initializer(b))
+
+    @tf.function
+    def call(self, r):
+        condition = tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b))
+        # In order to avoid evaluation of the exponential function outside
+        # of the scope of the cutoff_function an additional tf.where is used
+        r_save = tf.where(
+            condition, r, 0.5*(self.a + self.b)*tf.ones_like(r))
+        result = tf.where(
+            condition,
+            1./(1. + tf.exp(((self.a - self.b)*(2*r_save - self.a - self.b)) /
+                            ((r_save - self.a)*(r_save - self.b)))),
+            tf.zeros_like(r))
+        return tf.where(tf.less_equal(r, self.a), tf.ones_like(r), result)
 
 
 class OffsetLayer(tf.keras.layers.Layer):
