@@ -5,7 +5,7 @@ from mlff.utils import distances_and_pair_types
 
 
 def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None,
-                      floatx=tf.float32):
+                      floatx=tf.float32, shuffle=True):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -33,14 +33,15 @@ def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None,
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
 
-    dataset = dataset.shuffle(buffer_size=buffer_size)
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=buffer_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
 
 def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
                                    batch_size=None, buffer_size=None,
-                                   floatx=tf.float32):
+                                   floatx=tf.float32, shuffle=True):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -78,14 +79,16 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
 
-    dataset = dataset.shuffle(buffer_size=buffer_size)
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=buffer_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
 
 def descriptor_dataset_from_json(path, descriptor_set,
                                  batch_size=None, buffer_size=None,
-                                 floatx=tf.float32, Gs_min=None, Gs_max=None):
+                                 floatx=tf.float32, Gs_min=None, Gs_max=None,
+                                 shuffle=True):
     with open(path, 'r') as fin:
         data = json.load(fin)
 
@@ -133,6 +136,7 @@ def descriptor_dataset_from_json(path, descriptor_set,
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
 
-    dataset = dataset.shuffle(buffer_size=buffer_size)
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=buffer_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
