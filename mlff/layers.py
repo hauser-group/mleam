@@ -230,8 +230,10 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
 
 class AtomicNeuralNetwork(tf.keras.layers.Layer):
 
-    def __init__(self, layers=[20, 20], reg=None, **kwargs):
+    def __init__(self, layers=[20, 20], reg=None,
+                 offset_trainable=True, **kwargs):
         super().__init__(**kwargs)
+        self.offset_trainable = offset_trainable
         self.dense_layers = []
         if reg:
             reg = tf.keras.regularizers.L2(l2=reg)
@@ -239,7 +241,10 @@ class AtomicNeuralNetwork(tf.keras.layers.Layer):
             self.dense_layers.append(tf.keras.layers.Dense(
                 n, activation='tanh', kernel_regularizer=reg))
         # Last layer is linear
-        self.dense_layers.append(tf.keras.layers.Dense(1))
+        if offset_trainable:
+            self.dense_layers.append(tf.keras.layers.Dense(1))
+        else:
+            self.dense_layers.append(tf.keras.layers.Dense(1, use_bias=False))
 
     @tf.function
     def call(self, Gs):
@@ -247,7 +252,12 @@ class AtomicNeuralNetwork(tf.keras.layers.Layer):
         nn_results = self.dense_layers[0](Gs)
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
-        return nn_results
+        if self.offset_trainable:
+            return nn_results
+        offset = self.dense_layers[0](-tf.ones([1, Gs.shape[1]]))
+        for layer in self.dense_layers[1:]:
+            offset = layer(offset)
+        return nn_results - offset
 
 
 class MinMaxDescriptorNorm(tf.keras.layers.Layer):
