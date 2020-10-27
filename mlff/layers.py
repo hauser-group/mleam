@@ -216,8 +216,11 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
         for n in layers:
             self.dense_layers.append(tf.keras.layers.Dense(
                 n, activation='tanh', kernel_regularizer=reg))
-        # Last layer is linear
-        self.dense_layers.append(tf.keras.layers.Dense(1))
+        # Last layer is linear and has a bias value of one
+        self.dense_layers.append(tf.keras.layers.Dense(
+            1, bias_initializer='ones',
+            kernel_initializer=tf.keras.initializers.RandomNormal(stddev=1e-3))
+        )
 
     @tf.function
     def call(self, rho):
