@@ -5,6 +5,7 @@ class PolynomialCutoffFunction(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, a=5.0, b=7.5, trainable=False, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.a = self.add_weight(
             shape=(1), name='cut_a_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(a))
@@ -26,6 +27,7 @@ class PolynomialCutoffFunctionMask(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, a=5.0, b=7.5, trainable=False, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.a = self.add_weight(
             shape=(1), name='cut_a_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(a))
@@ -49,6 +51,7 @@ class SmoothCutoffFunction(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, a=5.0, b=7.5, trainable=False, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.a = self.add_weight(
             shape=(1), name='cut_a_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(a))
@@ -75,10 +78,12 @@ class OffsetLayer(tf.keras.layers.Layer):
 
     def __init__(self, type, trainable=False, **kwargs):
         super().__init__(**kwargs)
+        self.type = type
         self.offset = self.add_weight(
             shape=(1), name='%s_offset' % type, trainable=trainable,
             initializer=tf.zeros_initializer())
 
+    @tf.function
     def call(self, inp):
         return self.offset*tf.ones_like(inp)
 
@@ -89,6 +94,7 @@ class InputNormalization(tf.keras.layers.Layer):
     """
     def __init__(self, pair_type, r0=2.7, trainable=False, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.r0 = self.add_weight(
             shape=(1), name='r0_' + pair_type, trainable=trainable,
             initializer=tf.constant_initializer(r0))
@@ -102,6 +108,7 @@ class BornMayer(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, A=0.2, p=9.2, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.A = self.add_weight(
             shape=(1), name='A_' + pair_type,
             initializer=tf.constant_initializer(A))
@@ -110,8 +117,10 @@ class BornMayer(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(p))
         self._supports_ragged_inputs = True
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
+        """r_normalized.shape = (None,)"""
         return self.A*tf.exp(-self.p*r_normalized)
 
 
@@ -119,6 +128,7 @@ class RhoExp(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.xi = self.add_weight(
             shape=(1), name='xi_' + pair_type,
             initializer=tf.constant_initializer(xi))
@@ -127,7 +137,8 @@ class RhoExp(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(q))
         self._supports_ragged_inputs = True
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
         """r_normalized.shape = (None,)"""
         return self.xi*tf.exp(-self.q*r_normalized)
@@ -137,6 +148,7 @@ class NNRho(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.dense_layers = []
         if reg:
             reg = tf.keras.regularizers.L2(l2=reg)
@@ -146,7 +158,8 @@ class NNRho(tf.keras.layers.Layer):
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
         """r_normalized.shape = (None,)"""
         nn_results = self.dense_layers[0](
@@ -160,6 +173,7 @@ class NNRhoExp(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
         self.dense_layers = []
         if reg:
             reg = tf.keras.regularizers.L2(l2=reg)
@@ -169,7 +183,8 @@ class NNRhoExp(tf.keras.layers.Layer):
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
         """r_normalized.shape = (None,)"""
         nn_results = self.dense_layers[0](
@@ -189,7 +204,8 @@ class PairInteraction(tf.keras.layers.Layer):
         self.pair_interaction = pair_interaction
         self.cutoff_function = cutoff_function
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, r):
         return (self.pair_interaction(self.input_normalization(r))
                 * self.cutoff_function(r))
@@ -200,7 +216,8 @@ class SqrtEmbedding(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, rho):
         """rho.shape = (None,)"""
         return -tf.math.sqrt(rho)
@@ -222,7 +239,8 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
             kernel_initializer=tf.keras.initializers.RandomNormal(stddev=1e-3))
         )
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
     def call(self, rho):
         """rho.shape = (None,)"""
         nn_results = self.dense_layers[0](tf.expand_dims(rho, axis=-1))

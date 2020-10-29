@@ -82,7 +82,14 @@ class EAMPotential(tf.keras.Model):
                                               pair_types, dr_dx)
         return self.main_body_no_forces(types, distances, pair_types)
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, 1]), tf.int32, 1, tf.int64),
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, None, 1]), tf.keras.backend.floatx(),
+            2, tf.int64),
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, None, 1]), tf.int32, 2, tf.int64)))
     def main_body_no_forces(self, types, distances, pair_types):
         """Calculates the energy per atom by calling body_partition_stitch()
         """
@@ -96,7 +103,17 @@ class EAMPotential(tf.keras.Model):
 
         return energy_per_atom
 
-    @tf.function
+    @tf.function(input_signature=(
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, 1]), tf.int32, 1, tf.int64),
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, None, 1]), tf.keras.backend.floatx(),
+            2, tf.int64),
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, None, 1]), tf.int32, 2, tf.int64),
+        tf.RaggedTensorSpec(
+            tf.TensorShape([None, None, None, None, 3]),
+            tf.keras.backend.floatx(), 3, tf.int64)))
     def main_body_with_forces(self, types, distances, pair_types, dr_dx):
         """Calculates the energy per atom and the derivative of the total
            energy with respect to the distances
@@ -259,11 +276,13 @@ class SMATB(EAMPotential):
 
     def get_pair_potential(self, pair_type):
         return BornMayer(pair_type, A=self.params.get(('A', pair_type), 0.2),
-                         p=self.params.get(('p', pair_type), 9.2))
+                         p=self.params.get(('p', pair_type), 9.2),
+                         name='Phi-%s' % pair_type)
 
     def get_rho(self, pair_type):
         return RhoExp(pair_type, xi=self.params.get(('xi', pair_type), 1.6),
-                      q=self.params.get(('q', pair_type), 3.5))
+                      q=self.params.get(('q', pair_type), 3.5),
+                      name='Rho-%s' % pair_type)
 
     def get_embedding(self, type):
         return SqrtEmbedding(name='%s-Embedding' % type)
@@ -283,7 +302,7 @@ class NNRhoModel(SMATB):
         return NNRho(
             pair_type,
             layers=self.params.get(('rho_layers', pair_type), [20, 20]),
-            reg=self.reg)
+            reg=self.reg, name='Rho-%s' % pair_type)
 
 
 class NNRhoExpModel(SMATB):
@@ -292,7 +311,7 @@ class NNRhoExpModel(SMATB):
         return NNRhoExp(
             pair_type,
             layers=self.params.get(('rho_layers', pair_type), [20, 20]),
-            reg=self.reg)
+            reg=self.reg, name='Rho-%s' % pair_type)
 
 
 class NNEmbeddingNNRhoExpModel(NNEmbeddingModel, NNRhoExpModel):
