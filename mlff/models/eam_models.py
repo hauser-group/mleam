@@ -314,5 +314,9 @@ class NNRhoExpModel(SMATB):
             reg=self.reg, name='Rho-%s' % pair_type)
 
 
+class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):
+    """Combination of NNEmbeddingModel and NNRhoModel"""
+
+
 class NNEmbeddingNNRhoExpModel(NNEmbeddingModel, NNRhoExpModel):
     """Combination of NNEmbeddingModel and NNRhoExpModel"""
