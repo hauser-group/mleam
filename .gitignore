@@ -5,6 +5,8 @@ __pycache__/
 .ipynb_checkpoints
 notebooks/
 training/
+training_no_offset/
+training_reweighted/
 
 # Saved test models
 test/*.h5
