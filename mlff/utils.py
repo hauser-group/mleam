@@ -113,7 +113,9 @@ class ConstantExponentialDecay(tf.keras.optimizers.schedules.ExponentialDecay):
 
 
 def opt_fun_factory(model, loss, train_x, train_y, val_x=None, val_y=None,
-                    save_path=None):
+                    save_path=None,
+                    predict_fun=(lambda model, x, training:
+                                 model(x, training=training))):
     """A factory to create a function required by tfp.optimizer.lbfgs_minimize.
     Args:
         model [in]: an instance of `tf.keras.Model` or its subclasses.
@@ -172,14 +174,16 @@ def opt_fun_factory(model, loss, train_x, train_y, val_x=None, val_y=None,
             # update the parameters in the model
             assign_new_model_parameters(params_1d)
             # calculate the loss
-            loss_value = loss(model(train_x, training=True), train_y)
+            loss_value = loss(predict_fun(model, train_x, True), train_y)
 
         # calculate gradients and convert to 1D tf.Tensor
-        grads = tape.gradient(loss_value, model.trainable_variables)
+        grads = tape.gradient(
+            loss_value, model.trainable_variables,
+            unconnected_gradients=tf.UnconnectedGradients.ZERO)
         grads = tf.dynamic_stitch(idx, grads)
 
         if f.val:
-            val_loss = loss(model(val_x), val_y)
+            val_loss = loss(predict_fun(model, val_x, False), val_y)
             if val_loss < f.best_val:
                 tf.py_function(
                     lambda epoch, val_loss:
