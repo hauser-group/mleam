@@ -95,6 +95,12 @@ def distances_with_gradient(xyz):
     return tf.ragged.boolean_mask(distances, mask), gradient
 
 
+class RaggedMeanSquaredError(tf.keras.losses.Loss):
+
+    def call(self, y_true, y_pred):
+        return tf.math.reduce_mean(tf.math.squared_difference(y_pred, y_true))
+
+
 class ConstantExponentialDecay(tf.keras.optimizers.schedules.ExponentialDecay):
     def __init__(self, constant_steps=0, **kwargs):
         super().__init__(**kwargs)
