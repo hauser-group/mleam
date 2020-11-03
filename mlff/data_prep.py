@@ -27,14 +27,12 @@ def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None,
         (energy_per_atom,
          tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
 
-    input_dataset = input_dataset.apply(
-        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
-    output_dataset = output_dataset.batch(batch_size=batch_size)
-
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-
     if shuffle:
         dataset = dataset.shuffle(buffer_size=buffer_size)
+
+    dataset = dataset.apply(
+        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
@@ -73,14 +71,12 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
         (energy_per_atom,
          tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
 
-    input_dataset = input_dataset.apply(
-        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
-    output_dataset = output_dataset.batch(batch_size=batch_size)
-
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-
     if shuffle:
         dataset = dataset.shuffle(buffer_size=buffer_size)
+
+    dataset = dataset.apply(
+        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
@@ -130,13 +126,11 @@ def descriptor_dataset_from_json(path, descriptor_set,
         (energy_per_atom,
          tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
 
-    input_dataset = input_dataset.apply(
-        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
-    output_dataset = output_dataset.batch(batch_size=batch_size)
-
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-
     if shuffle:
         dataset = dataset.shuffle(buffer_size=buffer_size)
+
+    dataset = dataset.apply(
+        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size))
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
