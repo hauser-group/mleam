@@ -220,3 +220,51 @@ def opt_fun_factory(model, loss, train_x, train_y, val_x=None, val_y=None,
     f.best_val = tf.Variable(1e10)
 
     return f
+
+
+def pretrain_rho(model, params, max_iter=50000, tol=1e-5,
+                 r_vec=np.linspace(0, 6.2, 101, dtype=np.float32),
+                 optimizer=tf.keras.optimizers.Adam()):
+    from mlff.layers import (InputNormalization, PolynomialCutoffFunction,
+                             RhoExp, PairInteraction)
+
+    exp_rhos = {}
+    nn_rhos = {}
+    pair_types = ['NiNi', 'NiPt', 'PtPt']
+    for pair_type in pair_types:
+        normalized_input = InputNormalization(
+            pair_type, r0=params[('r0', pair_type)], trainable=False)
+        cutoff_function = PolynomialCutoffFunction(
+            pair_type, a=params[('cut_a', pair_type)],
+            b=params[('cut_b', pair_type)])
+        pair_potential = RhoExp(
+            pair_type, xi=params[('xi', pair_type)],
+            q=params[('q', pair_type)])
+
+        exp_rhos[pair_type] = PairInteraction(
+            normalized_input, pair_potential, cutoff_function)
+        nn_rhos[pair_type] = model.layers[
+            [l.name for l in model.layers].index('%s-rho' % pair_type)]
+
+    @tf.function
+    def rho_loss():
+        return tf.reduce_sum(tf.reduce_mean(
+            [tf.math.squared_difference(
+                 nn_rhos[pair_type](r_vec), exp_rhos[pair_type](r_vec))
+             for pair_type in pair_types], axis=1))
+
+    for i in range(max_iter):
+        with tf.GradientTape() as tape:
+            tape.watch(model.trainable_variables)
+            loss = rho_loss()
+            if loss < tol:
+                return True
+        grads = tape.gradient(
+            loss, model.trainable_variables,
+            unconnected_gradients=tf.UnconnectedGradients.ZERO)
+
+        optimizer.apply_gradients(zip(grads, model.trainable_weights))
+
+        if i % 500 == 0:
+            print(i, loss.numpy())
+    return False
