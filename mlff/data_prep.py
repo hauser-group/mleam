@@ -24,8 +24,8 @@ def dataset_from_json(path, type_dict, batch_size=None, buffer_size=None,
     energy_per_atom = tf.expand_dims(
         tf.constant(data['e_dft_bond'], dtype=floatx)/N, axis=-1)
     output_dataset = tf.data.Dataset.from_tensor_slices(
-        (energy_per_atom,
-         tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
+        {'energy_per_atom': energy_per_atom,
+         'forces': tf.ragged.constant(data['forces_dft'], ragged_rank=1)})
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
     if shuffle:
@@ -68,8 +68,8 @@ def preprocessed_dataset_from_json(path, type_dict, cutoff=10.0,
     energy_per_atom = tf.expand_dims(
         tf.constant(data['e_dft_bond'], dtype=floatx)/N, axis=-1)
     output_dataset = tf.data.Dataset.from_tensor_slices(
-        (energy_per_atom,
-         tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
+        {'energy_per_atom': energy_per_atom,
+         'forces': tf.ragged.constant(data['forces_dft'], ragged_rank=1)})
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
     if shuffle:
@@ -123,8 +123,8 @@ def descriptor_dataset_from_json(path, descriptor_set,
     energy_per_atom = tf.expand_dims(
         tf.constant(data['e_dft_bond'], dtype=floatx)/N, axis=-1)
     output_dataset = tf.data.Dataset.from_tensor_slices(
-        (energy_per_atom,
-         tf.ragged.constant(data['forces_dft'], ragged_rank=1)))
+        {'energy_per_atom': energy_per_atom,
+         'forces': tf.ragged.constant(data['forces_dft'], ragged_rank=1)})
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
     if shuffle:

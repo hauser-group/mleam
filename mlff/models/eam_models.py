@@ -101,7 +101,7 @@ class EAMPotential(tf.keras.Model):
             energy, tf.expand_dims(number_of_atoms, axis=-1),
             name='energy_per_atom')
 
-        return energy_per_atom
+        return {'energy_per_atom': energy_per_atom}
 
     @tf.function(input_signature=(
         tf.RaggedTensorSpec(
@@ -136,7 +136,7 @@ class EAMPotential(tf.keras.Model):
         # Sum over atom indices i and j. Force is the negative gradient.
         forces = -tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
                                 axis=(-3, -4), name='dE_dr_times_dr_dx')
-        return energy_per_atom, forces
+        return {'energy_per_atom': energy_per_atom, 'forces': forces}
 
     @tf.function
     def body_partition_stitch(self, types, distances, pair_types):
@@ -270,7 +270,8 @@ class SMATB(EAMPotential):
                 name='%s-rho' % pair_type)
         embedding_functions = {t: self.get_embedding(t)
                                for t in self.atom_types}
-        offsets = {t: OffsetLayer(t, self.offset_trainable)
+        offsets = {t: OffsetLayer(t, self.offset_trainable,
+                                  name='%s-offset' % t)
                    for t in self.atom_types}
         return pair_potentials, pair_rho, embedding_functions, offsets
 

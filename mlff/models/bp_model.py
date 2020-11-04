@@ -49,7 +49,7 @@ class BehlerParrinello(tf.keras.Model):
             energy, tf.expand_dims(number_of_atoms, axis=-1),
             name='energy_per_atom')
 
-        return energy_per_atom
+        return {'energy_per_atom': energy_per_atom}
 
     @tf.function
     def main_body_with_forces(self, types, Gs, dGs):
@@ -73,12 +73,12 @@ class BehlerParrinello(tf.keras.Model):
         # Sum over atom indices i and j. Force is the negative gradient.
         forces = -tf.reduce_sum(dGs * tf.expand_dims(dE_dG, -1),
                                 axis=(-3, -4), name='dE_dG_times_dG_dx')
-        return energy_per_atom, forces
+        return {'energy_per_atom': energy_per_atom, 'forces': forces}
 
     @tf.function
     def body_partition_stitch(self, types, Gs):
         """Returns the total energy """
-        # Partition Gs according to thei atom type.
+        # Partition Gs according to their atom type.
         # types needs to be broadcasted to the same shape as Gs by ones_like.
         # Gives a list of len(atom_types) of 1D tensors that has to be reshaped
         # before it goes through the neural network
