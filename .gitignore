@@ -7,6 +7,9 @@ notebooks/
 training/
 training_no_offset/
 training_reweighted/
+training_adam/
+
+data/
 
 # Saved test models
 test/*.h5
