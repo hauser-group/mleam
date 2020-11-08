@@ -17,6 +17,9 @@ class BehlerParrinello(tf.keras.Model):
                 layers[t], offset_trainable=offset_trainable,
                 reg=reg, name='%s-ANN' % t)
             for t in atom_types}
+        # TODO: Fix: this does somehow not create the weight variables...
+        for t in atom_types:
+            self.atomic_neural_nets[t].build(input_shape=(None, num_Gs[t]))
 
         types = tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)
         Gs = tf.keras.Input(shape=(None, None), ragged=True)
