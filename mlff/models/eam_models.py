@@ -1,8 +1,10 @@
 import tensorflow as tf
 from itertools import combinations_with_replacement
 from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
-                         InputNormalization, BornMayer, RhoExp, NNRho,
-                         NNRhoExp, SqrtEmbedding, NNSqrtEmbedding, OffsetLayer)
+                         OffsetLayer, InputNormalization, BornMayer,
+                         RhoExp, RhoTwoExp, NNRho, NNRhoExp,
+                         SqrtEmbedding, ExtendedEmbedding, NNSqrtEmbedding,
+                         )
 from mlff.utils import distances_and_pair_types
 
 
@@ -289,12 +291,29 @@ class SMATB(EAMPotential):
         return SqrtEmbedding(name='%s-Embedding' % type)
 
 
+class ExtendedEmbeddingModel(SMATB):
+
+    def get_embedding(self, type):
+        return ExtendedEmbedding(name='%s-Embedding' % type)
+
+
 class NNEmbeddingModel(SMATB):
 
     def get_embedding(self, type):
         return NNSqrtEmbedding(
             layers=self.params.get(('F_layers', type), [20, 20]),
             reg=self.reg, name='%s-Embedding' % type)
+
+
+class RhoTwoExpModel(SMATB):
+
+    def get_rho(self, pair_type):
+        return RhoTwoExp(pair_type,
+                         xi_1=self.params.get(('xi_1', pair_type), 1.6),
+                         q_1=self.params.get(('q_1', pair_type), 3.5),
+                         xi_2=self.params.get(('xi_2', pair_type), 0.8),
+                         q_2=self.params.get(('q_2', pair_type), 1.0),
+                         name='Rho-%s' % pair_type)
 
 
 class NNRhoModel(SMATB):
@@ -313,6 +332,10 @@ class NNRhoExpModel(SMATB):
             pair_type,
             layers=self.params.get(('rho_layers', pair_type), [20, 20]),
             reg=self.reg, name='Rho-%s' % pair_type)
+
+
+class ExtendedEmbeddingRhoTwoExpModel(ExtendedEmbeddingModel, RhoTwoExpModel):
+    """Combination of ExtendedEmbeddingModel and RhoTwoExpModel"""
 
 
 class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):

@@ -144,6 +144,37 @@ class RhoExp(tf.keras.layers.Layer):
         return self.xi*tf.exp(-self.q*r_normalized)
 
 
+class RhoTwoExp(tf.keras.layers.Layer):
+
+    def __init__(self, pair_type, xi_1=1.6, q_1=3.5,
+                 xi_2=0.8, q_2=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.xi_1 = self.add_weight(
+            shape=(1), name='xi_1_' + pair_type,
+            initializer=tf.constant_initializer(xi_1))
+        self.q_1 = self.add_weight(
+            shape=(1), name='q_1_' + pair_type,
+            initializer=tf.constant_initializer(q_1))
+        self.xi_2 = self.add_weight(
+            shape=(1), name='xi_2_' + pair_type,
+            initializer=tf.constant_initializer(xi_2))
+        self.q_2 = self.add_weight(
+            shape=(1), name='q_2_' + pair_type,
+            initializer=tf.constant_initializer(q_2))
+        self._supports_ragged_inputs = True
+
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+    def call(self, r_normalized):
+        """r_normalized.shape = (None,)
+
+        The output of this function will be squared. Therefore to avoid a
+        binomial mixing term the sqrt of the sum of squares is returned"""
+        return tf.sqrt(self.xi_1**2*tf.exp(-2*self.q_1*r_normalized)
+                       + self.xi_2**2*tf.exp(-2*self.q_2*r_normalized))
+
+
 class NNRho(tf.keras.layers.Layer):
 
     def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
@@ -221,6 +252,24 @@ class SqrtEmbedding(tf.keras.layers.Layer):
     def call(self, rho):
         """rho.shape = (None,)"""
         return -tf.math.sqrt(rho)
+
+
+class ExtendedEmbedding(tf.keras.layers.Layer):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.c0 = self.add_weight(
+            shape=(1), name='c0',
+            initializer=tf.constant_initializer(1.))
+        self.c1 = self.add_weight(
+            shape=(1), name='c1',
+            initializer=tf.constant_initializer(0.001))
+
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+    def call(self, rho):
+        """rho.shape = (None,)"""
+        return -tf.math.sqrt(rho)*(self.c0 + self.c1*rho)
 
 
 class NNSqrtEmbedding(tf.keras.layers.Layer):
