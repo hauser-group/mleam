@@ -60,7 +60,8 @@ class SMATBTest(unittest.TestCase):
 
         types = tf.expand_dims(tf.ragged.constant([types]), axis=2)
         positions = tf.ragged.constant([positions], ragged_rank=1)
-        energy, forces = model({'types': types, 'positions': positions})
+        prediction = model({'types': types, 'positions': positions})
+        energy, forces = prediction['energy_per_atom'], prediction['forces']
 
         np.testing.assert_allclose(energy.numpy()[0]*N, e_ref, rtol=1e-6)
         np.testing.assert_allclose(forces.numpy()[0], forces_ref, atol=1e-5)
@@ -95,7 +96,8 @@ class SMATBTest(unittest.TestCase):
 
         model = SMATB(['Ni', 'Pt'], params=params, build_forces=True)
 
-        e_model, _ = model({'types': types, 'positions': positions})
+        e_model = model({'types': types,
+                         'positions': positions})['energy_per_atom']
         e_model = tf.squeeze(e_model)*Ns
 
         # High tolerance since we know that the Ferrando code uses a different

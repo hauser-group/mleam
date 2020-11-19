@@ -20,7 +20,8 @@ class BehlerParrinelloTest(unittest.TestCase):
         model = BehlerParrinello(['Ni', 'Pt'], num_Gs={'Ni': 50, 'Pt': 50},
                                  build_forces=True)
 
-        energy, forces = model({'types': types, 'Gs': Gs, 'dGs': dGs})
+        prediction = model({'types': types, 'Gs': Gs, 'dGs': dGs})
+        energy, forces = prediction['energy_per_atom'], prediction['forces']
         model.save_weights('./tmp_model.h5')
 
         model2 = BehlerParrinello(['Ni', 'Pt'], num_Gs={'Ni': 50, 'Pt': 50},
@@ -31,7 +32,9 @@ class BehlerParrinelloTest(unittest.TestCase):
         model2({'types': types, 'Gs': Gs, 'dGs': dGs})
 
         model2.load_weights('./tmp_model.h5')
-        energy2, forces2 = model2({'types': types, 'Gs': Gs, 'dGs': dGs})
+        prediction2 = model2({'types': types, 'Gs': Gs, 'dGs': dGs})
+        energy2, forces2 = (prediction2['energy_per_atom'],
+                            prediction2['forces'])
 
         np.testing.assert_allclose(energy2.numpy(), energy.numpy())
         np.testing.assert_allclose(forces2.numpy(), forces.numpy())
@@ -61,7 +64,8 @@ class BehlerParrinelloTest(unittest.TestCase):
         model({'types': types, 'Gs': Gs, 'dGs': dGs})
         model.load_weights('behler_parrinello_reference/saved_model.h5')
 
-        energy, forces = model({'types': types, 'Gs': Gs, 'dGs': dGs})
+        prediction = model({'types': types, 'Gs': Gs, 'dGs': dGs})
+        energy, forces = prediction['energy_per_atom'], prediction['forces']
         energy = energy[0]*13
 
         # Save weights again for debugging
