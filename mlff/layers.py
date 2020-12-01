@@ -272,6 +272,24 @@ class ExtendedEmbedding(tf.keras.layers.Layer):
         return -tf.math.sqrt(rho)*(self.c0 + self.c1*rho)
 
 
+class ExtendedEmbeddingV2(tf.keras.layers.Layer):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.c0 = self.add_weight(
+            shape=(1), name='c0',
+            initializer=tf.constant_initializer(0.7))
+        self.c1 = self.add_weight(
+            shape=(1), name='c1',
+            initializer=tf.constant_initializer(0.05))
+
+    @tf.function(input_signature=(
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
+    def call(self, rho):
+        """rho.shape = (None, 1)"""
+        return -self.c0*tf.math.sqrt(rho) - self.c1*rho
+
+
 class NNSqrtEmbedding(tf.keras.layers.Layer):
 
     def __init__(self, layers=[20, 20], reg=None, **kwargs):

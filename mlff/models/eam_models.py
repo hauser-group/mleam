@@ -4,8 +4,8 @@ from itertools import combinations_with_replacement
 from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
                          OffsetLayer, InputNormalization, BornMayer,
                          RhoExp, RhoTwoExp, NNRho, NNRhoExp,
-                         SqrtEmbedding, ExtendedEmbedding, NNSqrtEmbedding,
-                         )
+                         SqrtEmbedding, ExtendedEmbedding, ExtendedEmbeddingV2,
+                         NNSqrtEmbedding)
 from mlff.utils import distances_and_pair_types
 
 
@@ -398,6 +398,12 @@ class ExtendedEmbeddingModel(SMATB):
 
     def get_embedding(self, type):
         return ExtendedEmbedding(name='%s-Embedding' % type)
+
+
+class ExtendedEmbeddingV2Model(SMATB):
+
+    def get_embedding(self, type):
+        return ExtendedEmbeddingV2(name='%s-Embedding' % type)
 
 
 class NNEmbeddingModel(SMATB):
