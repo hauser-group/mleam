@@ -41,6 +41,45 @@ class ModelTest():
             np.testing.assert_allclose(new_forces.to_tensor().numpy(),
                                        ref_forces.to_tensor().numpy())
 
+        def test_body_methods(self, atol=1e-6):
+            tf.keras.backend.clear_session()
+            # Random input
+            xyzs = tf.RaggedTensor.from_tensor(
+                tf.random.normal((1, 4, 3)), lengths=[4])
+            types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+            model = self.get_random_model(atom_types=['Ni', 'Pt'],
+                                          method='partition_stitch')
+            prediction_1 = model({'positions': xyzs, 'types': types})
+            e_1, forces_1 = (prediction_1['energy_per_atom'],
+                             prediction_1['forces'])
+            model.save_weights('./tmp_model.h5')
+
+            model_2 = self.get_model(['Ni', 'Pt'], method='where')
+            _ = model_2({'positions': xyzs, 'types': types})
+            model_2.load_weights('./tmp_model.h5')
+            prediction_2 = model_2({'positions': xyzs, 'types': types})
+            e_2, forces_2 = (prediction_2['energy_per_atom'],
+                             prediction_2['forces'])
+
+            np.testing.assert_allclose(e_1.numpy(), e_2.numpy(),
+                                       equal_nan=False, atol=1e-6)
+            np.testing.assert_allclose(forces_1.to_tensor().numpy(),
+                                       forces_2.to_tensor().numpy(),
+                                       equal_nan=False, atol=1e-6)
+
+            model_3 = self.get_model(['Ni', 'Pt'], method='gather_scatter')
+            _ = model_3({'positions': xyzs, 'types': types})
+            model_3.load_weights('./tmp_model.h5')
+            prediction_3 = model_3({'positions': xyzs, 'types': types})
+            e_3, forces_3 = (prediction_3['energy_per_atom'],
+                             prediction_3['forces'])
+
+            np.testing.assert_allclose(e_1.numpy(), e_3.numpy(),
+                                       equal_nan=False, atol=1e-6)
+            np.testing.assert_allclose(forces_1.to_tensor().numpy(),
+                                       forces_3.to_tensor().numpy(),
+                                       equal_nan=False, atol=1e-6)
+
         def test_derivative(self, atol=1e-2):
             """Test analytical derivative vs numerical using a float32 model.
                A cruicial problem is the low numerical accuracy of float32
@@ -109,12 +148,13 @@ class ModelTest():
 
 class SMATBTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # {'foo': 0} is a workaround for a bug in __init__ that should be
         # fixed ASAP
-        return SMATB(atom_types, params={'foo': 0}, build_forces=True)
+        return SMATB(atom_types, params={'foo': 0}, build_forces=True,
+                     **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(12))
         initial_params = {
@@ -126,20 +166,21 @@ class SMATBTest(ModelTest.ModelTest):
             ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = SMATB(atom_types, params=initial_params, build_forces=True)
+        model = SMATB(atom_types, params=initial_params, build_forces=True,
+                      **kwargs)
 
         return model
 
 
 class ExtendedEmbeddingModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # {'foo': 0} is a workaround for a bug in __init__ that should be
         # fixed ASAP
         return ExtendedEmbeddingModel(atom_types, params={'foo': 0},
-                                      build_forces=True)
+                                      build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(12))
         initial_params = {
@@ -159,12 +200,13 @@ class ExtendedEmbeddingModelTest(ModelTest.ModelTest):
 
 class RhoTwoExpModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # {'foo': 0} is a workaround for a bug in __init__ that should be
         # fixed ASAP
-        return RhoTwoExpModel(atom_types, params={'foo': 0}, build_forces=True)
+        return RhoTwoExpModel(atom_types, params={'foo': 0},
+                              build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(18))
         initial_params = {
@@ -181,20 +223,20 @@ class RhoTwoExpModelTest(ModelTest.ModelTest):
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
         model = RhoTwoExpModel(atom_types, params=initial_params,
-                               build_forces=True)
+                               build_forces=True, **kwargs)
 
         return model
 
 
 class ExtendedEmbeddingRhoTwoExpModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # {'foo': 0} is a workaround for a bug in __init__ that should be
         # fixed ASAP
         return ExtendedEmbeddingRhoTwoExpModel(atom_types, params={'foo': 0},
-                                               build_forces=True)
+                                               build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(18))
         initial_params = {
@@ -212,20 +254,20 @@ class ExtendedEmbeddingRhoTwoExpModelTest(ModelTest.ModelTest):
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
         model = ExtendedEmbeddingRhoTwoExpModel(atom_types,
                                                 params=initial_params,
-                                                build_forces=True)
+                                                build_forces=True, **kwargs)
 
         return model
 
 
 class NNEmbeddingModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         return NNEmbeddingModel(atom_types,
                                 params={('F_layers', 'Ni'): [12, 8],
                                         ('F_layers', 'Pt'): [6, 8, 4]},
-                                build_forces=True)
+                                build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(12))
         params = {
@@ -238,21 +280,22 @@ class NNEmbeddingModelTest(ModelTest.ModelTest):
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
             ('F_layers', 'Ni'): [12, 8], ('F_layers', 'Pt'): [6, 8, 4]}
-        model = NNEmbeddingModel(atom_types, params=params, build_forces=True)
+        model = NNEmbeddingModel(atom_types, params=params,
+                                 build_forces=True, **kwargs)
 
         return model
 
 
 class NNRhoModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         return NNRhoModel(atom_types,
                           params={('rho_layers', 'PtPt'): [16],
                                   ('rho_layers', 'NiNi'): [12, 8],
                                   ('rho_layers', 'NiPt'): [6, 8, 4]},
-                          build_forces=True)
+                          build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 6 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(6))
         params = {
@@ -264,21 +307,22 @@ class NNRhoModelTest(ModelTest.ModelTest):
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
-        model = NNRhoModel(atom_types, params=params, build_forces=True)
+        model = NNRhoModel(atom_types, params=params,
+                           build_forces=True, **kwargs)
 
         return model
 
 
 class NNRhoExpModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         return NNRhoExpModel(atom_types,
                              params={('rho_layers', 'PtPt'): [16],
                                      ('rho_layers', 'NiNi'): [12, 8],
                                      ('rho_layers', 'NiPt'): [6, 8, 4]},
-                             build_forces=True)
+                             build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 6 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(6))
         params = {
@@ -290,24 +334,25 @@ class NNRhoExpModelTest(ModelTest.ModelTest):
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
-        model = NNRhoExpModel(atom_types, params=params, build_forces=True)
+        model = NNRhoExpModel(atom_types, params=params,
+                              build_forces=True, **kwargs)
 
         return model
 
 
 class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         return NNEmbeddingNNRhoModel(
             atom_types,
             params={('F_layers', 'Ni'): [12, 8],
                     ('F_layers', 'Pt'): [6, 8, 4],
                     ('rho_layers', 'PtPt'): [16],
                     ('rho_layers', 'NiNi'): [12, 8],
-                    ('rho_layers', 'NiPt'): [6, 8, 4]
-                    }, build_forces=True)
+                    ('rho_layers', 'NiPt'): [6, 8, 4]},
+            build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(12))
         params = {
@@ -323,24 +368,24 @@ class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
         model = NNEmbeddingNNRhoModel(atom_types, params=params,
-                                      build_forces=True)
+                                      build_forces=True, **kwargs)
 
         return model
 
 
 class NNEmbeddingNNRhoExpModelTest(ModelTest.ModelTest):
 
-    def get_model(self, atom_types=['Ni', 'Pt']):
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         return NNEmbeddingNNRhoExpModel(
             atom_types,
             params={('F_layers', 'Ni'): [12, 8],
                     ('F_layers', 'Pt'): [6, 8, 4],
                     ('rho_layers', 'PtPt'): [16],
                     ('rho_layers', 'NiNi'): [12, 8],
-                    ('rho_layers', 'NiPt'): [6, 8, 4]
-                    }, build_forces=True)
+                    ('rho_layers', 'NiPt'): [6, 8, 4]},
+            build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt']):
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(12))
         params = {
@@ -356,7 +401,7 @@ class NNEmbeddingNNRhoExpModelTest(ModelTest.ModelTest):
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
         model = NNEmbeddingNNRhoExpModel(atom_types, params=params,
-                                         build_forces=True)
+                                         build_forces=True, **kwargs)
 
         return model
 

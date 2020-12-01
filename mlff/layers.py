@@ -118,9 +118,9 @@ class BornMayer(tf.keras.layers.Layer):
         self._supports_ragged_inputs = True
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
-        """r_normalized.shape = (None,)"""
+        """r_normalized.shape = (None, 1)"""
         return self.A*tf.exp(-self.p*r_normalized)
 
 
@@ -138,9 +138,9 @@ class RhoExp(tf.keras.layers.Layer):
         self._supports_ragged_inputs = True
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
-        """r_normalized.shape = (None,)"""
+        """r_normalized.shape = (None, 1)"""
         return self.xi*tf.exp(-self.q*r_normalized)
 
 
@@ -165,9 +165,9 @@ class RhoTwoExp(tf.keras.layers.Layer):
         self._supports_ragged_inputs = True
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
-        """r_normalized.shape = (None,)
+        """r_normalized.shape = (None, 1)
 
         The output of this function will be squared. Therefore to avoid a
         binomial mixing term the sqrt of the sum of squares is returned"""
@@ -190,9 +190,9 @@ class NNRho(tf.keras.layers.Layer):
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
-        """r_normalized.shape = (None,)"""
+        """r_normalized.shape = (None, 1)"""
         nn_results = self.dense_layers[0](
             tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
@@ -215,9 +215,9 @@ class NNRhoExp(tf.keras.layers.Layer):
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, r_normalized):
-        """r_normalized.shape = (None,)"""
+        """r_normalized.shape = (None, 1)"""
         nn_results = self.dense_layers[0](
             tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
@@ -236,7 +236,7 @@ class PairInteraction(tf.keras.layers.Layer):
         self.cutoff_function = cutoff_function
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, r):
         return (self.pair_interaction(self.input_normalization(r))
                 * self.cutoff_function(r))
@@ -248,9 +248,9 @@ class SqrtEmbedding(tf.keras.layers.Layer):
         super().__init__(**kwargs)
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, rho):
-        """rho.shape = (None,)"""
+        """rho.shape = (None, 1)"""
         return -tf.math.sqrt(rho)
 
 
@@ -266,9 +266,9 @@ class ExtendedEmbedding(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(0.001))
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, rho):
-        """rho.shape = (None,)"""
+        """rho.shape = (None, 1)"""
         return -tf.math.sqrt(rho)*(self.c0 + self.c1*rho)
 
 
@@ -289,13 +289,13 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
         )
 
     @tf.function(input_signature=(
-        tf.TensorSpec(shape=(None,), dtype=tf.keras.backend.floatx()),))
+        tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),))
     def call(self, rho):
-        """rho.shape = (None,)"""
-        nn_results = self.dense_layers[0](tf.expand_dims(rho, axis=-1))
+        """rho.shape = (None, 1)"""
+        nn_results = self.dense_layers[0](rho)
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
-        return -tf.math.sqrt(rho)*tf.squeeze(nn_results, axis=-1)
+        return -tf.math.sqrt(rho)*nn_results
 
 
 class AtomicNeuralNetwork(tf.keras.layers.Layer):
