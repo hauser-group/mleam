@@ -5,7 +5,7 @@ from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
                          OffsetLayer, InputNormalization, BornMayer,
                          RhoExp, RhoTwoExp, NNRho, NNRhoExp,
                          SqrtEmbedding, ExtendedEmbedding, ExtendedEmbeddingV2,
-                         NNSqrtEmbedding)
+                         ExtendedEmbeddingV3, NNSqrtEmbedding)
 from mlff.utils import distances_and_pair_types
 
 
@@ -404,6 +404,12 @@ class ExtendedEmbeddingV2Model(SMATB):
 
     def get_embedding(self, type):
         return ExtendedEmbeddingV2(name='%s-Embedding' % type)
+
+
+class ExtendedEmbeddingV3Model(SMATB):
+
+    def get_embedding(self, type):
+        return ExtendedEmbeddingV3(name='%s-Embedding' % type)
 
 
 class NNEmbeddingModel(SMATB):
