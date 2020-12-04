@@ -453,6 +453,11 @@ class ExtendedEmbeddingRhoTwoExpModel(ExtendedEmbeddingModel, RhoTwoExpModel):
     """Combination of ExtendedEmbeddingModel and RhoTwoExpModel"""
 
 
+class ExtendedEmbeddingV3RhoTwoExpModel(ExtendedEmbeddingV3Model,
+                                        RhoTwoExpModel):
+    """Combination of ExtendedEmbeddingV3Model and RhoTwoExpModel"""
+
+
 class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):
     """Combination of NNEmbeddingModel and NNRhoModel"""
 
