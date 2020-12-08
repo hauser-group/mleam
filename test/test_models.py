@@ -3,9 +3,11 @@ import numpy as np
 import tensorflow as tf
 from mlff.models import (SMATB, ExtendedEmbeddingModel,
                          ExtendedEmbeddingV2Model, ExtendedEmbeddingV3Model,
+                         ExtendedEmbeddingV4Model,
                          NNEmbeddingModel, NNRhoModel, RhoTwoExpModel,
                          NNRhoExpModel, ExtendedEmbeddingRhoTwoExpModel,
                          ExtendedEmbeddingV3RhoTwoExpModel,
+                         ExtendedEmbeddingV4RhoTwoExpModel,
                          NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel)
 from utils import derive_scalar_wrt_array
 
@@ -42,45 +44,6 @@ class ModelTest():
             np.testing.assert_allclose(new_e.numpy(), ref_e.numpy())
             np.testing.assert_allclose(new_forces.to_tensor().numpy(),
                                        ref_forces.to_tensor().numpy())
-
-        def test_body_methods(self, atol=1e-6):
-            tf.keras.backend.clear_session()
-            # Random input
-            xyzs = tf.RaggedTensor.from_tensor(
-                tf.random.normal((1, 4, 3)), lengths=[4])
-            types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
-            model = self.get_random_model(atom_types=['Ni', 'Pt'],
-                                          method='partition_stitch')
-            prediction_1 = model({'positions': xyzs, 'types': types})
-            e_1, forces_1 = (prediction_1['energy_per_atom'],
-                             prediction_1['forces'])
-            model.save_weights('./tmp_model.h5')
-
-            model_2 = self.get_model(['Ni', 'Pt'], method='where')
-            _ = model_2({'positions': xyzs, 'types': types})
-            model_2.load_weights('./tmp_model.h5')
-            prediction_2 = model_2({'positions': xyzs, 'types': types})
-            e_2, forces_2 = (prediction_2['energy_per_atom'],
-                             prediction_2['forces'])
-
-            np.testing.assert_allclose(e_1.numpy(), e_2.numpy(),
-                                       equal_nan=False, atol=1e-6)
-            np.testing.assert_allclose(forces_1.to_tensor().numpy(),
-                                       forces_2.to_tensor().numpy(),
-                                       equal_nan=False, atol=1e-6)
-
-            model_3 = self.get_model(['Ni', 'Pt'], method='gather_scatter')
-            _ = model_3({'positions': xyzs, 'types': types})
-            model_3.load_weights('./tmp_model.h5')
-            prediction_3 = model_3({'positions': xyzs, 'types': types})
-            e_3, forces_3 = (prediction_3['energy_per_atom'],
-                             prediction_3['forces'])
-
-            np.testing.assert_allclose(e_1.numpy(), e_3.numpy(),
-                                       equal_nan=False, atol=1e-6)
-            np.testing.assert_allclose(forces_1.to_tensor().numpy(),
-                                       forces_3.to_tensor().numpy(),
-                                       equal_nan=False, atol=1e-6)
 
         def test_derivative(self, atol=1e-2):
             """Test analytical derivative vs numerical using a float32 model.
@@ -149,12 +112,13 @@ class ModelTest():
 
 
 class SMATBTest(ModelTest.ModelTest):
+    model_class = SMATB
 
     def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # {'foo': 0} is a workaround for a bug in __init__ that should be
         # fixed ASAP
-        return SMATB(atom_types, params={'foo': 0}, build_forces=True,
-                     **kwargs)
+        return self.model_class(atom_types, params={'foo': 0},
+                                build_forces=True, **kwargs)
 
     def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
@@ -168,100 +132,33 @@ class SMATBTest(ModelTest.ModelTest):
             ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = SMATB(atom_types, params=initial_params, build_forces=True,
-                      **kwargs)
+        model = self.model_class(atom_types, params=initial_params,
+                                 build_forces=True, **kwargs)
 
         return model
 
 
-class ExtendedEmbeddingModelTest(ModelTest.ModelTest):
-
-    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # {'foo': 0} is a workaround for a bug in __init__ that should be
-        # fixed ASAP
-        return ExtendedEmbeddingModel(atom_types, params={'foo': 0},
-                                      build_forces=True, **kwargs)
-
-    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
-        initial_params = {
-            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
-            ('xi', 'PtPt'): p[3], ('xi', 'NiPt'): p[4], ('xi', 'NiNi'): p[5],
-            ('p', 'PtPt'): p[6], ('p', 'NiPt'): p[7], ('p', 'NiNi'): p[8],
-            ('q', 'PtPt'): p[9], ('q', 'NiPt'): p[10], ('q', 'NiNi'): p[11],
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
-            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
-            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = ExtendedEmbeddingModel(atom_types, params=initial_params,
-                                       build_forces=True, **kwargs)
-
-        return model
+class ExtendedEmbeddingModelTest(SMATBTest):
+    model_class = ExtendedEmbeddingModel
 
 
-class ExtendedEmbeddingV2ModelTest(ModelTest.ModelTest):
+class ExtendedEmbeddingV2ModelTest(SMATBTest):
+    model_class = ExtendedEmbeddingV2Model
 
-    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # {'foo': 0} is a workaround for a bug in __init__ that should be
-        # fixed ASAP
-        return ExtendedEmbeddingV2Model(atom_types, params={'foo': 0},
-                                        build_forces=True, **kwargs)
+
+class ExtendedEmbeddingV3ModelTest(SMATBTest):
+    model_class = ExtendedEmbeddingV3Model
+
+
+class ExtendedEmbeddingV4ModelTest(SMATBTest):
+    model_class = ExtendedEmbeddingV4Model
+
+
+class RhoTwoExpModelTest(SMATBTest):
+    model_class = RhoTwoExpModel
 
     def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
-        initial_params = {
-            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
-            ('xi', 'PtPt'): p[3], ('xi', 'NiPt'): p[4], ('xi', 'NiNi'): p[5],
-            ('p', 'PtPt'): p[6], ('p', 'NiPt'): p[7], ('p', 'NiNi'): p[8],
-            ('q', 'PtPt'): p[9], ('q', 'NiPt'): p[10], ('q', 'NiNi'): p[11],
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
-            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
-            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = ExtendedEmbeddingV2Model(atom_types, params=initial_params,
-                                         build_forces=True, **kwargs)
-
-        return model
-
-
-class ExtendedEmbeddingV3ModelTest(ModelTest.ModelTest):
-
-    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # {'foo': 0} is a workaround for a bug in __init__ that should be
-        # fixed ASAP
-        return ExtendedEmbeddingV3Model(atom_types, params={'foo': 0},
-                                        build_forces=True, **kwargs)
-
-    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
-        initial_params = {
-            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
-            ('xi', 'PtPt'): p[3], ('xi', 'NiPt'): p[4], ('xi', 'NiNi'): p[5],
-            ('p', 'PtPt'): p[6], ('p', 'NiPt'): p[7], ('p', 'NiNi'): p[8],
-            ('q', 'PtPt'): p[9], ('q', 'NiPt'): p[10], ('q', 'NiNi'): p[11],
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
-            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
-            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = ExtendedEmbeddingV3Model(atom_types, params=initial_params,
-                                         build_forces=True, **kwargs)
-
-        return model
-
-
-class RhoTwoExpModelTest(ModelTest.ModelTest):
-
-    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # {'foo': 0} is a workaround for a bug in __init__ that should be
-        # fixed ASAP
-        return RhoTwoExpModel(atom_types, params={'foo': 0},
-                              build_forces=True, **kwargs)
-
-    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # Generate 12 random positive numbers for the SMATB parameters
+        # Generate 18 random positive numbers for the SMATB parameters
         p = np.abs(np.random.randn(18))
         initial_params = {
             ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
@@ -276,72 +173,22 @@ class RhoTwoExpModelTest(ModelTest.ModelTest):
             ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = RhoTwoExpModel(atom_types, params=initial_params,
-                               build_forces=True, **kwargs)
+        model = self.model_class(atom_types, params=initial_params,
+                                 build_forces=True, **kwargs)
 
         return model
 
 
-class ExtendedEmbeddingRhoTwoExpModelTest(ModelTest.ModelTest):
-
-    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # {'foo': 0} is a workaround for a bug in __init__ that should be
-        # fixed ASAP
-        return ExtendedEmbeddingRhoTwoExpModel(atom_types, params={'foo': 0},
-                                               build_forces=True, **kwargs)
-
-    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(18))
-        initial_params = {
-            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
-            ('xi_1', 'PtPt'): p[3], ('xi_1', 'NiPt'): p[4],
-            ('xi_1', 'NiNi'): p[5], ('xi_2', 'PtPt'): p[6],
-            ('xi_2', 'NiPt'): p[7], ('xi_2', 'NiNi'): p[8],
-            ('p', 'PtPt'): p[9], ('p', 'NiPt'): p[10], ('p', 'NiNi'): p[11],
-            ('q_1', 'PtPt'): p[12], ('q_1', 'NiPt'): p[13],
-            ('q_1', 'NiNi'): p[14], ('q_2', 'PtPt'): p[15],
-            ('q_2', 'NiPt'): p[16], ('q_2', 'NiNi'): p[17],
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
-            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
-            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = ExtendedEmbeddingRhoTwoExpModel(atom_types,
-                                                params=initial_params,
-                                                build_forces=True, **kwargs)
-
-        return model
+class ExtendedEmbeddingRhoTwoExpModelTest(RhoTwoExpModelTest):
+    model_class = ExtendedEmbeddingRhoTwoExpModel
 
 
-class ExtendedEmbeddingV3RhoTwoExpModelTest(ModelTest.ModelTest):
+class ExtendedEmbeddingV3RhoTwoExpModelTest(RhoTwoExpModelTest):
+    model_class = ExtendedEmbeddingV3RhoTwoExpModel
 
-    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # {'foo': 0} is a workaround for a bug in __init__ that should be
-        # fixed ASAP
-        return ExtendedEmbeddingV3RhoTwoExpModel(atom_types, params={'foo': 0},
-                                                 build_forces=True, **kwargs)
 
-    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(18))
-        initial_params = {
-            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
-            ('xi_1', 'PtPt'): p[3], ('xi_1', 'NiPt'): p[4],
-            ('xi_1', 'NiNi'): p[5], ('xi_2', 'PtPt'): p[6],
-            ('xi_2', 'NiPt'): p[7], ('xi_2', 'NiNi'): p[8],
-            ('p', 'PtPt'): p[9], ('p', 'NiPt'): p[10], ('p', 'NiNi'): p[11],
-            ('q_1', 'PtPt'): p[12], ('q_1', 'NiPt'): p[13],
-            ('q_1', 'NiNi'): p[14], ('q_2', 'PtPt'): p[15],
-            ('q_2', 'NiPt'): p[16], ('q_2', 'NiNi'): p[17],
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
-            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
-            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
-        model = ExtendedEmbeddingV3RhoTwoExpModel(atom_types,
-                                                  params=initial_params,
-                                                  build_forces=True, **kwargs)
-
-        return model
+class ExtendedEmbeddingV4RhoTwoExpModelTest(RhoTwoExpModelTest):
+    model_class = ExtendedEmbeddingV4RhoTwoExpModel
 
 
 class NNEmbeddingModelTest(ModelTest.ModelTest):
