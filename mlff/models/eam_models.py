@@ -395,6 +395,36 @@ class SMATB(EAMPotential):
         return SqrtEmbedding(name='%s-Embedding' % type)
 
 
+class CommonEmbeddingSMATB(SMATB):
+
+    def build_functions(self):
+        pair_potentials = {}
+        pair_rho = {}
+        for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
+            pair_type = ''.join([t1, t2])
+            normalized_input = InputNormalization(
+                pair_type, r0=self.params.get(('r0', pair_type), 2.7),
+                trainable=self.r0_trainable)
+            cutoff_function = PolynomialCutoffFunction(
+                pair_type, a=self.params.get(('cut_a', pair_type), 5.0),
+                b=self.params.get(('cut_b', pair_type), 7.5))
+            pair_potential = self.get_pair_potential(pair_type)
+            rho = self.get_rho(pair_type)
+            pair_potentials[pair_type] = PairInteraction(
+                normalized_input, pair_potential, cutoff_function,
+                name='%s-phi' % pair_type)
+            pair_rho[pair_type] = PairInteraction(
+                normalized_input, rho, cutoff_function,
+                name='%s-rho' % pair_type)
+        embedding_function = self.get_embedding()
+        embedding_functions = {t: embedding_function
+                               for t in self.atom_types}
+        offsets = {t: OffsetLayer(t, self.offset_trainable,
+                                  name='%s-offset' % t)
+                   for t in self.atom_types}
+        return pair_potentials, pair_rho, embedding_functions, offsets
+
+
 class ExtendedEmbeddingModel(SMATB):
 
     def get_embedding(self, type):
@@ -425,6 +455,16 @@ class NNEmbeddingModel(SMATB):
         return NNSqrtEmbedding(
             layers=self.params.get(('F_layers', type), [20, 20]),
             reg=self.reg, name='%s-Embedding' % type)
+
+
+class CommonNNEmbeddingModel(CommonEmbeddingSMATB):
+
+    def get_embedding(self):
+        # Tensorflow requires keys to have a consistent type, therefore a
+        # tuple is used.
+        return NNSqrtEmbedding(
+            layers=self.params.get(('F_layers',), [20, 20]),
+            reg=self.reg, name='Common-Embedding')
 
 
 class RhoTwoExpModel(SMATB):
@@ -476,3 +516,12 @@ class NNEmbeddingNNRhoModel(NNEmbeddingModel, NNRhoModel):
 
 class NNEmbeddingNNRhoExpModel(NNEmbeddingModel, NNRhoExpModel):
     """Combination of NNEmbeddingModel and NNRhoExpModel"""
+
+
+class CommonNNEmbeddingNNRhoModel(CommonNNEmbeddingModel):
+
+    def get_rho(self, pair_type):
+        return NNRho(
+            pair_type,
+            layers=self.params.get(('rho_layers', pair_type), [20, 20]),
+            reg=self.reg, name='Rho-%s' % pair_type)

@@ -5,7 +5,8 @@ from .eam_models import (SMATB, ExtendedEmbeddingModel,
                          NNRhoExpModel, ExtendedEmbeddingRhoTwoExpModel,
                          ExtendedEmbeddingV3RhoTwoExpModel,
                          ExtendedEmbeddingV4RhoTwoExpModel,
-                         NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel)
+                         NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel,
+                         CommonNNEmbeddingModel, CommonNNEmbeddingNNRhoModel)
 from .bp_model import BehlerParrinello
 
 __all__ = ['SMATB', 'ExtendedEmbeddingModel', 'ExtendedEmbeddingV2Model',
@@ -14,4 +15,5 @@ __all__ = ['SMATB', 'ExtendedEmbeddingModel', 'ExtendedEmbeddingV2Model',
            'NNRhoModel', 'NNRhoExpModel', 'ExtendedEmbeddingRhoTwoExpModel',
            'ExtendedEmbeddingV3RhoTwoExpModel',
            'ExtendedEmbeddingV4RhoTwoExpModel', 'NNEmbeddingNNRhoModel',
-           'NNEmbeddingNNRhoExpModel', 'BehlerParrinello']
+           'NNEmbeddingNNRhoExpModel', 'BehlerParrinello',
+           'CommonNNEmbeddingModel', 'CommonNNEmbeddingNNRhoModel']

@@ -8,7 +8,8 @@ from mlff.models import (SMATB, ExtendedEmbeddingModel,
                          NNRhoExpModel, ExtendedEmbeddingRhoTwoExpModel,
                          ExtendedEmbeddingV3RhoTwoExpModel,
                          ExtendedEmbeddingV4RhoTwoExpModel,
-                         NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel)
+                         NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel,
+                         CommonNNEmbeddingModel, CommonNNEmbeddingNNRhoModel)
 from utils import derive_scalar_wrt_array
 
 
@@ -273,9 +274,10 @@ class NNRhoExpModelTest(ModelTest.ModelTest):
 
 
 class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
+    model_class = NNEmbeddingNNRhoModel
 
     def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        return NNEmbeddingNNRhoModel(
+        return self.model_class(
             atom_types,
             params={('F_layers', 'Ni'): [12, 8],
                     ('F_layers', 'Pt'): [6, 8, 4],
@@ -299,19 +301,48 @@ class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
             ('F_layers', 'Ni'): [12, 8], ('F_layers', 'Pt'): [6, 8, 4],
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
-        model = NNEmbeddingNNRhoModel(atom_types, params=params,
-                                      build_forces=True, **kwargs)
+        model = self.model_class(atom_types, params=params,
+                                 build_forces=True, **kwargs)
 
         return model
 
 
-class NNEmbeddingNNRhoExpModelTest(ModelTest.ModelTest):
+class NNEmbeddingNNRhoExpModelTest(NNEmbeddingNNRhoModelTest):
+    model_class = NNEmbeddingNNRhoExpModel
+
+
+class CommonNNEmbeddingModelTest(ModelTest.ModelTest):
 
     def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
-        return NNEmbeddingNNRhoExpModel(
+        return CommonNNEmbeddingModel(atom_types,
+                                      params={('F_layers',): [12, 8]},
+                                      build_forces=True, **kwargs)
+
+    def get_random_model(self, atom_types=['Ni', 'Pt'], **kwargs):
+        # Generate 12 random positive numbers for the SMATB parameters
+        p = np.abs(np.random.randn(12))
+        params = {
+            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
+            ('xi', 'PtPt'): p[3], ('xi', 'NiPt'): p[4], ('xi', 'NiNi'): p[5],
+            ('p', 'PtPt'): p[6], ('p', 'NiPt'): p[7], ('p', 'NiNi'): p[8],
+            ('q', 'PtPt'): p[9], ('q', 'NiPt'): p[10], ('q', 'NiNi'): p[11],
+            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
+            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
+            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
+            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
+            ('F_layers',): [12, 8]}
+        model = CommonNNEmbeddingModel(atom_types, params=params,
+                                       build_forces=True, **kwargs)
+
+        return model
+
+
+class CommonNNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
+
+    def get_model(self, atom_types=['Ni', 'Pt'], **kwargs):
+        return CommonNNEmbeddingNNRhoModel(
             atom_types,
-            params={('F_layers', 'Ni'): [12, 8],
-                    ('F_layers', 'Pt'): [6, 8, 4],
+            params={('F_layers',): [12, 8],
                     ('rho_layers', 'PtPt'): [16],
                     ('rho_layers', 'NiNi'): [12, 8],
                     ('rho_layers', 'NiPt'): [6, 8, 4]},
@@ -329,11 +360,11 @@ class NNEmbeddingNNRhoExpModelTest(ModelTest.ModelTest):
             ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
             ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
             ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434,
-            ('F_layers', 'Ni'): [12, 8], ('F_layers', 'Pt'): [6, 8, 4],
+            ('F_layers',): [12, 8],
             ('rho_layers', 'PtPt'): [16], ('rho_layers', 'NiNi'): [12, 8],
             ('rho_layers', 'NiPt'): [6, 8, 4]}
-        model = NNEmbeddingNNRhoExpModel(atom_types, params=params,
-                                         build_forces=True, **kwargs)
+        model = CommonNNEmbeddingNNRhoModel(atom_types, params=params,
+                                            build_forces=True, **kwargs)
 
         return model
 
