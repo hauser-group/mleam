@@ -7,6 +7,20 @@ from mlff.models import SMATB
 
 class SMATBTest(unittest.TestCase):
 
+    params = {
+        ('A', 'PtPt'): 0.1602, ('A', 'NiPt'): 0.1346,
+        ('A', 'NiNi'): 0.0845, ('xi', 'PtPt'): 2.1855,
+        ('xi', 'NiPt'): 2.3338, ('xi', 'NiNi'): 1.405,
+        ('p', 'PtPt'): 13.00, ('p', 'NiPt'): 14.838, ('p', 'NiNi'): 11.73,
+        ('q', 'PtPt'): 3.13, ('q', 'NiPt'): 3.036, ('q', 'NiNi'): 1.93,
+        ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
+        ('cut_a', 'PtPt'): 4.08707719,
+        ('cut_b', 'PtPt'): 5.0056268338740553,
+        ('cut_a', 'NiPt'): 4.08707719,
+        ('cut_b', 'NiPt'): 4.4340500673763259,
+        ('cut_a', 'NiNi'): 3.62038672,
+        ('cut_b', 'NiNi'): 4.4340500673763259}
+
     def test_versus_lammps(self):
         # Read reference geometry
         with open('LAMMPS_SMATB_reference/data.NiPt', 'r') as fin:
@@ -42,21 +56,7 @@ class SMATBTest(unittest.TestCase):
                     sp = line.split()
                     forces_ref.append([float(s) for s in sp[2:5]])
 
-        params = {
-            ('A', 'PtPt'): 0.1602, ('A', 'NiPt'): 0.1346,
-            ('A', 'NiNi'): 0.0845, ('xi', 'PtPt'): 2.1855,
-            ('xi', 'NiPt'): 2.3338, ('xi', 'NiNi'): 1.405,
-            ('p', 'PtPt'): 13.00, ('p', 'NiPt'): 14.838, ('p', 'NiNi'): 11.73,
-            ('q', 'PtPt'): 3.13, ('q', 'NiPt'): 3.036, ('q', 'NiNi'): 1.93,
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.08707719,
-            ('cut_b', 'PtPt'): 5.0056268338740553,
-            ('cut_a', 'NiPt'): 4.08707719,
-            ('cut_b', 'NiPt'): 4.4340500673763259,
-            ('cut_a', 'NiNi'): 3.62038672,
-            ('cut_b', 'NiNi'): 4.4340500673763259}
-
-        model = SMATB(['Ni', 'Pt'], params=params, build_forces=True)
+        model = SMATB(['Ni', 'Pt'], params=self.params, build_forces=True)
 
         types = tf.expand_dims(tf.ragged.constant([types]), axis=2)
         positions = tf.ragged.constant([positions], ragged_rank=1)
@@ -80,21 +80,7 @@ class SMATBTest(unittest.TestCase):
         positions = tf.ragged.constant(data['positions'], ragged_rank=1)
         Ns = tf.cast(types.row_lengths(), dtype=tf.float32)
 
-        params = {
-            ('A', 'PtPt'): 0.1602, ('A', 'NiPt'): 0.1346,
-            ('A', 'NiNi'): 0.0845, ('xi', 'PtPt'): 2.1855,
-            ('xi', 'NiPt'): 2.3338, ('xi', 'NiNi'): 1.405,
-            ('p', 'PtPt'): 13.00, ('p', 'NiPt'): 14.838, ('p', 'NiNi'): 11.73,
-            ('q', 'PtPt'): 3.13, ('q', 'NiPt'): 3.036, ('q', 'NiNi'): 1.93,
-            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
-            ('cut_a', 'PtPt'): 4.08707719,
-            ('cut_b', 'PtPt'): 5.0056268338740553,
-            ('cut_a', 'NiPt'): 4.08707719,
-            ('cut_b', 'NiPt'): 4.4340500673763259,
-            ('cut_a', 'NiNi'): 3.62038672,
-            ('cut_b', 'NiNi'): 4.4340500673763259}
-
-        model = SMATB(['Ni', 'Pt'], params=params, build_forces=True)
+        model = SMATB(['Ni', 'Pt'], params=self.params, build_forces=True)
 
         e_model = model({'types': types,
                          'positions': positions})['energy_per_atom']
@@ -103,6 +89,60 @@ class SMATBTest(unittest.TestCase):
         # High tolerance since we know that the Ferrando code uses a different
         # cutoff style
         np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-3)
+
+    def test_body_methods(self, atol=1e-6):
+        tf.keras.backend.clear_session()
+        # Random input
+        xyzs = tf.RaggedTensor.from_tensor(
+            tf.random.normal((1, 4, 3)), lengths=[4])
+        types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+
+        # Generate 12 random positive numbers for the SMATB parameters
+        p = np.abs(np.random.randn(12))
+        random_params = {
+            ('A', 'PtPt'): p[0], ('A', 'NiPt'): p[1], ('A', 'NiNi'): p[2],
+            ('xi', 'PtPt'): p[3], ('xi', 'NiPt'): p[4], ('xi', 'NiNi'): p[5],
+            ('p', 'PtPt'): p[6], ('p', 'NiPt'): p[7], ('p', 'NiNi'): p[8],
+            ('q', 'PtPt'): p[9], ('q', 'NiPt'): p[10], ('q', 'NiNi'): p[11],
+            ('r0', 'PtPt'): 2.77, ('r0', 'NiPt'): 2.63, ('r0', 'NiNi'): 2.49,
+            ('cut_a', 'PtPt'): 4.087, ('cut_b', 'PtPt'): 5.006,
+            ('cut_a', 'NiPt'): 4.087, ('cut_b', 'NiPt'): 4.434,
+            ('cut_a', 'NiNi'): 3.620, ('cut_b', 'NiNi'): 4.434}
+
+        model = SMATB(['Ni', 'Pt'], params=random_params, build_forces=True,
+                      method='partition_stitch')
+        prediction_1 = model({'positions': xyzs, 'types': types})
+        e_1, forces_1 = (prediction_1['energy_per_atom'],
+                         prediction_1['forces'])
+        model.save_weights('./tmp_model.h5')
+
+        model_2 = SMATB(['Ni', 'Pt'], params=random_params, build_forces=True,
+                        method='where')
+        _ = model_2({'positions': xyzs, 'types': types})
+        model_2.load_weights('./tmp_model.h5')
+        prediction_2 = model_2({'positions': xyzs, 'types': types})
+        e_2, forces_2 = (prediction_2['energy_per_atom'],
+                         prediction_2['forces'])
+
+        np.testing.assert_allclose(e_1.numpy(), e_2.numpy(),
+                                   equal_nan=False, atol=1e-6)
+        np.testing.assert_allclose(forces_1.to_tensor().numpy(),
+                                   forces_2.to_tensor().numpy(),
+                                   equal_nan=False, atol=1e-6)
+
+        model_3 = SMATB(['Ni', 'Pt'], params=random_params, build_forces=True,
+                        method='gather_scatter')
+        _ = model_3({'positions': xyzs, 'types': types})
+        model_3.load_weights('./tmp_model.h5')
+        prediction_3 = model_3({'positions': xyzs, 'types': types})
+        e_3, forces_3 = (prediction_3['energy_per_atom'],
+                         prediction_3['forces'])
+
+        np.testing.assert_allclose(e_1.numpy(), e_3.numpy(),
+                                   equal_nan=False, atol=1e-6)
+        np.testing.assert_allclose(forces_1.to_tensor().numpy(),
+                                   forces_3.to_tensor().numpy(),
+                                   equal_nan=False, atol=1e-6)
 
 
 if __name__ == '__main__':
