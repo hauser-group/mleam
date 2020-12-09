@@ -223,7 +223,8 @@ def opt_fun_factory(model, loss, train_x, train_y, val_x=None, val_y=None,
 
 
 def pretrain_rho(model, params, max_iter=50000, tol=1e-5,
-                 r_vec=np.linspace(0, 6.2, 101, dtype=np.float32),
+                 r_vec=np.reshape(np.linspace(0, 6.2, 101, dtype=np.float32),
+                                  (-1, 1)),
                  optimizer=tf.keras.optimizers.Adam()):
     from mlff.layers import (InputNormalization, PolynomialCutoffFunction,
                              RhoExp, PairInteraction)
