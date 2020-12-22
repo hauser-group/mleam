@@ -113,6 +113,17 @@ class ModelTest():
             finally:
                 tf.keras.backend.set_floatx('float32')
 
+        def test_tabulation(self):
+            try:
+                from atsim.potentials import EAMPotential, Potential
+            except ImportError:
+                print('Skipping tabulation test')
+                return
+            model = self.get_random_model(atom_types=['Ni', 'Pt'])
+            model.tabulate('tmp', atomic_numbers=dict(Ni=28, Pt=78),
+                           atomic_masses=dict(Ni=58.6934, Pt=195.084),
+                           cutoff_rho=120.0, nrho=100, cutoff=6.2, nr=100)
+
 
 class SMATBTest(ModelTest.ModelTest):
     model_class = SMATB

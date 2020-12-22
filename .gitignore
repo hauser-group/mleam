@@ -13,3 +13,4 @@ data/
 
 # Saved test models
 test/*.h5
+test/tmp.eam.fs

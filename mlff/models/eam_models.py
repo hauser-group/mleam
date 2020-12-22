@@ -335,6 +335,68 @@ class EAMPotential(tf.keras.Model):
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name='energy')
 
+    def tabulate(self, filename, atomic_numbers, atomic_masses,
+                 lattice_constants=dict(), lattice_types=dict(),
+                 cutoff_rho=120.0, nrho=10000, cutoff=6.2, nr=10000):
+        """
+        Uses the atsim module to tabulate the potential for use in LAMMPS or
+        similar programs.
+
+        filename: str path of the output file. Note that the extension
+                     .eam.fs is added
+        atomic_numbers: dict containing the atomic_numbers of all
+                            self.atom_types
+        atomic_masses: dict containing the atomic mass of all self.atom_types
+
+        """
+        from atsim.potentials import EAMPotential, Potential
+        from atsim.potentials.eam_tabulation import SetFL_FS_EAMTabulation
+
+        def pair_wrapper(fun):
+            def wrapped_fun(x):
+                return 2*fun(tf.reshape(x, (1, 1)))
+            return wrapped_fun
+
+        def rho_wrapper(fun):
+            def wrapped_fun(x):
+                return tf.math.square(fun(tf.reshape(x, (1, 1))))
+            return wrapped_fun
+
+        def F_wrapper(fun):
+            def wrapped_fun(x):
+                return fun(tf.reshape(x, (1, 1)))
+            return wrapped_fun
+
+        pair_potentials = []
+        pair_densities = {t: {} for t in self.atom_types}
+        for (t1, t2) in combinations_with_replacement(self.atom_types, 2):
+            pair_type = ''.join([t1, t2])
+
+            def pair_pot(x):
+                return self.pair_potentials[pair_type](tf.reshape(x, (1, 1)))
+            pair_potentials.append(
+                Potential(t1, t2, pair_wrapper(self.pair_potentials[pair_type])
+                          #lambda x: self.pair_potentials[pair_type](
+                          #    x*tf.ones((1, 1)))
+                          ))
+            pair_densities[t1][t2] = rho_wrapper(self.pair_rho[pair_type])
+            pair_densities[t2][t1] = rho_wrapper(self.pair_rho[pair_type])
+
+        eam_potentials = []
+        for t in self.atom_types:
+            eam_potentials.append(
+                EAMPotential(t, atomic_numbers[t], atomic_masses[t],
+                             F_wrapper(self.embedding_functions[t]),
+                             pair_densities[t],
+                             latticeConstant=lattice_constants.get(t, 0.0),
+                             latticeType=lattice_types.get(t, 'fcc')))
+
+        tabulation = SetFL_FS_EAMTabulation(
+            pair_potentials, eam_potentials, cutoff, nr, cutoff_rho, nrho)
+
+        with open(''.join([filename, '.eam.fs']), 'w') as outfile:
+            tabulation.write(outfile)
+
 
 class SMATB(EAMPotential):
 

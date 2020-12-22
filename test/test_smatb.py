@@ -144,6 +144,42 @@ class SMATBTest(unittest.TestCase):
                                    forces_3.to_tensor().numpy(),
                                    equal_nan=False, atol=1e-6)
 
+    def test_tabulation(self, atol=5e-2):
+        try:
+            from atsim.potentials import EAMPotential, Potential
+        except ImportError:
+            print('Skipping tabulation test')
+            return
+        model = SMATB(['Ni', 'Pt'], params=self.params)
+        model.tabulate('tmp', atomic_numbers=dict(Ni=28, Pt=78),
+                       atomic_masses=dict(Ni=58.6934, Pt=195.084),
+                       cutoff_rho=100.0, nrho=10000, cutoff=6.0, nr=10000)
+
+        def compare_tabs(start_ind):
+            ref = np.loadtxt('LAMMPS_SMATB_reference/NiPt.eam.fs',
+                             skiprows=start_ind, max_rows=10000)
+            test = np.loadtxt('tmp.eam.fs', skiprows=start_ind, max_rows=10000)
+            np.testing.assert_allclose(test, ref, atol=atol)
+
+        # F Ni:
+        compare_tabs(6)
+        # F Pt:
+        compare_tabs(6+30000+1)
+        # rho NiNi:
+        compare_tabs(6+10000)
+        # rho NiPt:
+        compare_tabs(6+20000)
+        # rho PtNi:
+        compare_tabs(6+30000+1+10000)
+        # rho PtPt:
+        compare_tabs(6+30000+1+20000)
+        # phi NiNi:
+        compare_tabs(6+30000+1+30000)
+        # phi NiPt:
+        compare_tabs(6+30000+1+30000+10000)
+        # phi PtPt:
+        compare_tabs(6+30000+1+30000+20000)
+
 
 if __name__ == '__main__':
     unittest.main()
