@@ -8,6 +8,7 @@ from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
                          ExtendedEmbeddingV3, ExtendedEmbeddingV4,
                          NNSqrtEmbedding)
 from mlff.utils import distances_and_pair_types
+import warnings
 
 
 class EAMPotential(tf.keras.Model):
@@ -353,6 +354,9 @@ class EAMPotential(tf.keras.Model):
         """
         from atsim.potentials import EAMPotential, Potential
         from atsim.potentials.eam_tabulation import SetFL_FS_EAMTabulation
+
+        warnings.warn('Long range behavior of the tabulated potentials differs'
+                      ' from the tensorflow implementation!')
 
         def pair_wrapper(fun):
             def wrapped_fun(x):
