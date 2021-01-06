@@ -39,6 +39,24 @@ def distances_and_pair_types(xyz, types, n_types, cutoff=10.0):
 
 
 @tf.function
+def distances_and_pair_types_no_grad(xyz, types, n_types, cutoff=10.0):
+    n = tf.shape(xyz, out_type=tf.int64)[0]
+    r_vec = tf.expand_dims(xyz, 0) - tf.expand_dims(xyz, 1)
+    distances = tf.sqrt(tf.reduce_sum(r_vec**2, axis=-1, keepdims=True))
+    mask = tf.logical_and(tf.logical_not(tf.eye(n, dtype=tf.bool)),
+                          tf.less_equal(distances[:, :, 0], cutoff))
+
+    min_ij = tf.math.minimum(types[:, tf.newaxis], types[tf.newaxis, :])
+    pair_types = (
+        n_types*min_ij - (min_ij*(min_ij-1))//2
+        + tf.abs(tf.subtract(types[:, tf.newaxis], types[tf.newaxis, :])))
+
+    distances = tf.ragged.boolean_mask(distances, mask)
+    pair_types = tf.ragged.boolean_mask(pair_types, mask)
+    return distances, pair_types
+
+
+@tf.function
 def get_pair_type(types, n):
     """input: int tensor of shape (None, 1)
               int of the total number of elements"""

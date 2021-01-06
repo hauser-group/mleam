@@ -191,13 +191,15 @@ class EAMPotential(tf.keras.Model):
             forces = -tf.reduce_sum(dr_dx * tf.expand_dims(dE_dr, -1),
                                     axis=(-3, -4), name='dE_dr_times_dr_dx')
         elif self.force_method == 'new':
-            dE_dr = tf.reshape(
+            dr_dx = dr_dx.merge_dims(1, 2)
+            print(dr_dx.nested_row_splits)
+            dE_dr = tf.RaggedTensor.from_row_splits(
                 tape.gradient(energy, distances.flat_values),
-                tf.TensorShape([types.shape[0], None, 1, 1]), name='dE_dr')
-            # dr_dx.shape = (batch_size, None, None, None, 3)
-            # dE_dr.shape = (batch_size, None, 1, 1)
+                dr_dx.row_splits, name='dE_dr')
+            # dr_dx.shape = (batch_size, None, None, 3)
+            # dE_dr.shape = (batch_size, None, 1)
             forces = -tf.reduce_sum(
-                dr_dx.merge_dims(1, 2) * dE_dr,
+                dr_dx * tf.expand_dims(dE_dr, -1),
                 axis=-3, name='dE_dr_times_dr_dx')
         else:
             raise NotImplementedError(
