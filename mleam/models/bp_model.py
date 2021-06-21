@@ -1,5 +1,5 @@
 import tensorflow as tf
-from mlff.layers import AtomicNeuralNetwork
+from mleam.layers import AtomicNeuralNetwork
 
 
 class BehlerParrinello(tf.keras.Model):

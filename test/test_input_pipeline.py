@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from mlff.utils import distances_and_pair_types
+from mleam.utils import distances_and_pair_types
 from utils import rotation_matrix, derive_array_wrt_array
 
 

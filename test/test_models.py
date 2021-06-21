@@ -1,17 +1,17 @@
 import unittest
 import numpy as np
 import tensorflow as tf
-from mlff.models import (SMATB, ExtendedEmbeddingModel,
-                         ExtendedEmbeddingV2Model, ExtendedEmbeddingV3Model,
-                         ExtendedEmbeddingV4Model,
-                         NNEmbeddingModel, NNRhoModel, RhoTwoExpModel,
-                         NNRhoExpModel, ExtendedEmbeddingRhoTwoExpModel,
-                         ExtendedEmbeddingV3RhoTwoExpModel,
-                         ExtendedEmbeddingV4RhoTwoExpModel,
-                         NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel,
-                         CommonNNEmbeddingModel, CommonNNEmbeddingNNRhoModel,
-                         CommonExtendedEmbeddingV4Model,
-                         CommonExtendedEmbeddingV4RhoTwoExpModel)
+from mleam.models import (SMATB, ExtendedEmbeddingModel,
+                          ExtendedEmbeddingV2Model, ExtendedEmbeddingV3Model,
+                          ExtendedEmbeddingV4Model,
+                          NNEmbeddingModel, NNRhoModel, RhoTwoExpModel,
+                          NNRhoExpModel, ExtendedEmbeddingRhoTwoExpModel,
+                          ExtendedEmbeddingV3RhoTwoExpModel,
+                          ExtendedEmbeddingV4RhoTwoExpModel,
+                          NNEmbeddingNNRhoModel, NNEmbeddingNNRhoExpModel,
+                          CommonNNEmbeddingModel, CommonNNEmbeddingNNRhoModel,
+                          CommonExtendedEmbeddingV4Model,
+                          CommonExtendedEmbeddingV4RhoTwoExpModel)
 from utils import derive_scalar_wrt_array
 
 

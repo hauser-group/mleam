@@ -1,8 +1,8 @@
 import tensorflow as tf
 import numpy as np
 import json
-from mlff.utils import (distances_and_pair_types,
-                        distances_and_pair_types_no_grad)
+from mleam.utils import (distances_and_pair_types,
+                         distances_and_pair_types_no_grad)
 
 
 def dataset_from_json(path, type_dict, forces=True, batch_size=None,

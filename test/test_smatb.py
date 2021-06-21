@@ -2,7 +2,7 @@ import unittest
 import json
 import numpy as np
 import tensorflow as tf
-from mlff.models import SMATB
+from mleam.models import SMATB
 
 
 class SMATBTest(unittest.TestCase):

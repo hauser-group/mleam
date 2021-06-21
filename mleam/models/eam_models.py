@@ -1,13 +1,13 @@
 import tensorflow as tf
 from tensorflow.python.ops.ragged.ragged_where_op import where as ragged_where
 from itertools import combinations_with_replacement
-from mlff.layers import (PairInteraction, PolynomialCutoffFunction,
-                         OffsetLayer, InputNormalization, BornMayer,
-                         RhoExp, RhoTwoExp, NNRho, NNRhoExp,
-                         SqrtEmbedding, ExtendedEmbedding, ExtendedEmbeddingV2,
-                         ExtendedEmbeddingV3, ExtendedEmbeddingV4,
-                         NNSqrtEmbedding)
-from mlff.utils import distances_and_pair_types
+from mleam.layers import (PairInteraction, PolynomialCutoffFunction,
+                          OffsetLayer, InputNormalization, BornMayer,
+                          RhoExp, RhoTwoExp, NNRho, NNRhoExp,
+                          SqrtEmbedding, ExtendedEmbedding, ExtendedEmbeddingV2,
+                          ExtendedEmbeddingV3, ExtendedEmbeddingV4,
+                          NNSqrtEmbedding)
+from mleam.utils import distances_and_pair_types
 import warnings
 
 

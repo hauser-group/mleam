@@ -2,7 +2,7 @@ import unittest
 import json
 import tensorflow as tf
 import numpy as np
-from mlff.models import BehlerParrinello
+from mleam.models import BehlerParrinello
 
 
 class BehlerParrinelloTest(unittest.TestCase):
