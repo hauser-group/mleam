@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mleam"
+version = "0.0.1"
+authors = [
+  { name="Ralf Meyer", email="meyer.ralf@yahoo.com" },
+]
+description = "Machine learning based embedded atom models"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+  "numpy<2.0.0",
+  "tensorflow<=2.14",  # Unfortunately newer versions changed support for ragged tensors
+  "pytest",
+]
+
+[tool.setuptools]
+packages = ["mleam"]
