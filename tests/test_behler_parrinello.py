@@ -5,7 +5,9 @@ from mleam.models import BehlerParrinello
 
 
 def test_saving_and_loading(resource_path_root, tmpdir):
-    with open(resource_path_root / "behler_parrinello_reference" / "NiPt13.json", "r") as fin:
+    with open(
+        resource_path_root / "behler_parrinello_reference" / "NiPt13.json", "r"
+    ) as fin:
         data = json.load(fin)
 
     type_dict = {"Ni": 0, "Pt": 1}
@@ -66,7 +68,9 @@ def test_behlerparinello_versus_mlpot(resource_path_root, tmpdir):
     # Model needs to be called once before loading in order to
     # determine all weight sizes...
     model({"types": types, "Gs": Gs, "dGs": dGs})
-    model.load_weights(resource_path_root / "behler_parrinello_reference" / "saved_model.h5")
+    model.load_weights(
+        resource_path_root / "behler_parrinello_reference" / "saved_model.h5"
+    )
 
     prediction = model({"types": types, "Gs": Gs, "dGs": dGs})
     energy, forces = prediction["energy_per_atom"], prediction["forces"]
