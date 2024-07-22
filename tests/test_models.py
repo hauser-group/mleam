@@ -1,3 +1,4 @@
+import pytest
 import unittest
 import numpy as np
 import tensorflow as tf
@@ -117,8 +118,7 @@ class ModelTest():
             try:
                 from atsim.potentials import EAMPotential, Potential
             except ImportError:
-                print('Skipping tabulation test')
-                return
+                pytest.skip("atsim.potentials not installed")
             model = self.get_random_model(atom_types=['Ni', 'Pt'])
             model.tabulate('tmp', atomic_numbers=dict(Ni=28, Pt=78),
                            atomic_masses=dict(Ni=58.6934, Pt=195.084),
