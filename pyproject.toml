@@ -21,7 +21,13 @@ dependencies = [
   "numpy<2.0.0",
   "tensorflow<=2.14",  # Unfortunately newer versions changed support for ragged tensors
   "atsim.potentials",
+]
+
+
+[project.optional-dependencies]
+tests = [
   "pytest",
+  "pytest-cov",
   "pytest-resource-path",
 ]
 
