@@ -34,9 +34,7 @@ def params():
 
 def test_versus_lammps(resource_path_root, params):
     # Read reference geometry
-    with open(
-        resource_path_root / "LAMMPS_SMATB_reference" / "data.NiPt", "r"
-    ) as fin:
+    with open(resource_path_root / "LAMMPS_SMATB_reference" / "data.NiPt", "r") as fin:
         flag = False
         # Convert to tensorflow types
         type_dict = {"1": 0, "2": 1}
@@ -53,7 +51,7 @@ def test_versus_lammps(resource_path_root, params):
                 positions.append([float(s) for s in sp[2:5]])
     N = len(types)
     # Read LAMMPS energy
-    with open(resource_path_root / "LAMMPS_SMATB_reference" /"log.lammps", "r") as fin:
+    with open(resource_path_root / "LAMMPS_SMATB_reference" / "log.lammps", "r") as fin:
         for line in fin:
             if line.startswith("Step Temp E_pair E_mol TotEng Press"):
                 sp = next(fin).split()
@@ -102,6 +100,7 @@ def test_versus_ferrando_code(params, resource_path_root):
     # High tolerance since we know that the Ferrando code uses a different
     # cutoff style
     np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-3)
+
 
 def test_body_methods(tmpdir, atol=1e-6):
     tf.keras.backend.clear_session()
@@ -199,7 +198,9 @@ def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
 
     def compare_tabs(start_ind):
         ref = np.loadtxt(
-            resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs", skiprows=start_ind, max_rows=10000
+            resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs",
+            skiprows=start_ind,
+            max_rows=10000,
         )
         test = np.loadtxt(tmpdir / "tmp.eam.fs", skiprows=start_ind, max_rows=10000)
         np.testing.assert_allclose(test, ref, atol=atol)
