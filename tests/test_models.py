@@ -56,9 +56,11 @@ class ModelTest:
                 new_prediction["forces"],
             )
 
-            np.testing.assert_allclose(new_e.numpy(), ref_e.numpy())
+            np.testing.assert_allclose(new_e.numpy(), ref_e.numpy(), atol=1e-6)
             np.testing.assert_allclose(
-                new_forces.to_tensor().numpy(), ref_forces.to_tensor().numpy()
+                new_forces.to_tensor().numpy(),
+                ref_forces.to_tensor().numpy(),
+                atol=1e-6,
             )
 
         def test_derivative(self, atol=1e-2):

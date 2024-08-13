@@ -29,7 +29,7 @@ def embedding_function(rho):
 
 def make_density(xi, q, r_0, a, b):
     def rho(r):
-        return (xi * np.exp(-q * (r / r_0 - 1)) * poly_cutoff(r, a, b)) ** 2
+        return xi**2 * np.exp(-2 * q * (r / r_0 - 1)) * poly_cutoff(r, a, b)
 
     return rho
 

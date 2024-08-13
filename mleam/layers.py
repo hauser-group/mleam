@@ -172,7 +172,7 @@ class RhoExp(tf.keras.layers.Layer):
     )
     def call(self, r_normalized):
         """r_normalized.shape = (None, 1)"""
-        return self.xi * tf.exp(-self.q * r_normalized)
+        return self.xi**2 * tf.exp(-2 * self.q * r_normalized)
 
 
 class RhoTwoExp(tf.keras.layers.Layer):
@@ -207,22 +207,23 @@ class RhoTwoExp(tf.keras.layers.Layer):
 
         The output of this function will be squared. Therefore to avoid a
         binomial mixing term the sqrt of the sum of squares is returned"""
-        return tf.sqrt(
-            self.xi_1**2 * tf.exp(-2 * self.q_1 * r_normalized)
-            + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
-        )
+        return self.xi_1**2 * tf.exp(
+            -2 * self.q_1 * r_normalized
+        ) + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
 
 
 class NNRho(tf.keras.layers.Layer):
-    def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
+    def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
         self.dense_layers = []
-        if reg:
-            reg = tf.keras.regularizers.L2(l2=reg)
+        if regularization:
+            regularization = tf.keras.regularizers.L2(l2=regularization)
         for n in layers:
             self.dense_layers.append(
-                tf.keras.layers.Dense(n, activation="tanh", kernel_regularizer=reg)
+                tf.keras.layers.Dense(
+                    n, activation="tanh", kernel_regularizer=regularization
+                )
             )
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
@@ -241,15 +242,17 @@ class NNRho(tf.keras.layers.Layer):
 
 
 class NNRhoExp(tf.keras.layers.Layer):
-    def __init__(self, pair_type, layers=[20, 20], reg=None, **kwargs):
+    def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
         self.dense_layers = []
-        if reg:
-            reg = tf.keras.regularizers.L2(l2=reg)
+        if regularization:
+            regularization = tf.keras.regularizers.L2(l2=regularization)
         for n in layers:
             self.dense_layers.append(
-                tf.keras.layers.Dense(n, activation="tanh", kernel_regularizer=reg)
+                tf.keras.layers.Dense(
+                    n, activation="tanh", kernel_regularizer=regularization
+                )
             )
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
@@ -387,14 +390,16 @@ class ExtendedEmbeddingV4(tf.keras.layers.Layer):
 
 
 class NNSqrtEmbedding(tf.keras.layers.Layer):
-    def __init__(self, layers=[20, 20], reg=None, **kwargs):
+    def __init__(self, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.dense_layers = []
-        if reg:
-            reg = tf.keras.regularizers.L2(l2=reg)
+        if regularization:
+            regularization = tf.keras.regularizers.L2(l2=regularization)
         for n in layers:
             self.dense_layers.append(
-                tf.keras.layers.Dense(n, activation="tanh", kernel_regularizer=reg)
+                tf.keras.layers.Dense(
+                    n, activation="tanh", kernel_regularizer=regularization
+                )
             )
         # Last layer is linear and has a bias value of one
         self.dense_layers.append(
@@ -419,15 +424,19 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
 
 
 class AtomicNeuralNetwork(tf.keras.layers.Layer):
-    def __init__(self, layers=[20, 20], reg=None, offset_trainable=True, **kwargs):
+    def __init__(
+        self, layers=[20, 20], regularization=None, offset_trainable=True, **kwargs
+    ):
         super().__init__(**kwargs)
         self.offset_trainable = offset_trainable
         self.dense_layers = []
-        if reg:
-            reg = tf.keras.regularizers.L2(l2=reg)
+        if regularization:
+            regularization = tf.keras.regularizers.L2(l2=regularization)
         for n in layers:
             self.dense_layers.append(
-                tf.keras.layers.Dense(n, activation="tanh", kernel_regularizer=reg)
+                tf.keras.layers.Dense(
+                    n, activation="tanh", kernel_regularizer=regularization
+                )
             )
         # Last layer is linear
         if offset_trainable:

@@ -218,7 +218,7 @@ class EAMPotential(tf.keras.Model):
         )
 
         if self.force_method == "old":
-            # Probably not should not be reshaped to RaggedTensor only to sum
+            # Probably should not be reshaped to RaggedTensor only to sum
             # over these dimensions in the next step.
             dE_dr = tf.RaggedTensor.from_nested_row_splits(
                 tape.gradient(energy, distances.flat_values),
@@ -265,7 +265,7 @@ class EAMPotential(tf.keras.Model):
             )
 
         # Sum over atoms j
-        sum_rho = tf.reduce_sum(rho**2, axis=-2, name="sum_rho")
+        sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho")
         sum_phi = tf.reduce_sum(phi, axis=-2, name="sum_phi")
 
         # Make sure that sum_rho is never exactly zero since this leads to
@@ -324,7 +324,7 @@ class EAMPotential(tf.keras.Model):
         rho = tf.RaggedTensor.from_nested_row_splits(rho, distances.nested_row_splits)
 
         # Sum over atoms j
-        sum_rho = tf.reduce_sum(rho**2, axis=-2, name="sum_rho")
+        sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho")
         sum_phi = tf.reduce_sum(phi, axis=-2, name="sum_phi")
 
         # Make sure that sum_rho is never exactly zero since this leads to
@@ -385,7 +385,7 @@ class EAMPotential(tf.keras.Model):
         rho = tf.RaggedTensor.from_nested_row_splits(rho, distances.nested_row_splits)
         # Sum over atoms j and flatten again
         atomic_energies = tf.reduce_sum(phi, axis=-2).flat_values
-        sum_rho = tf.reduce_sum(rho**2, axis=-2).flat_values
+        sum_rho = tf.reduce_sum(rho, axis=-2).flat_values
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
         sum_rho = tf.math.maximum(sum_rho, 1e-30)
@@ -442,7 +442,7 @@ class EAMPotential(tf.keras.Model):
 
         def rho_wrapper(fun):
             def wrapped_fun(x):
-                return tf.math.square(fun(tf.reshape(x, (1, 1))))
+                return fun(tf.reshape(x, (1, 1)))
 
             return wrapped_fun
 
@@ -520,7 +520,7 @@ class SMATB(EAMPotential):
         super().__init__(atom_types, cutoff=cutoff, **kwargs)
 
     def build_functions(self):
-        # Todo should probably move to parent class
+        # TODO should probably move to parent class
         pair_potentials = {}
         pair_rho = {}
         for t1, t2 in combinations_with_replacement(self.atom_types, 2):
@@ -638,7 +638,7 @@ class NNEmbeddingModel(SMATB):
     def get_embedding(self, type):
         return NNSqrtEmbedding(
             layers=self.params.get(("F_layers", type), [20, 20]),
-            reg=self.reg,
+            regularization=self.reg,
             name="%s-Embedding" % type,
         )
 
@@ -649,7 +649,7 @@ class CommonNNEmbeddingModel(CommonEmbeddingSMATB):
         # tuple is used.
         return NNSqrtEmbedding(
             layers=self.params.get(("F_layers",), [20, 20]),
-            reg=self.reg,
+            regularization=self.reg,
             name="Common-Embedding",
         )
 
@@ -671,7 +671,7 @@ class NNRhoModel(SMATB):
         return NNRho(
             pair_type,
             layers=self.params.get(("rho_layers", pair_type), [20, 20]),
-            reg=self.reg,
+            regularization=self.reg,
             name="Rho-%s" % pair_type,
         )
 
@@ -681,7 +681,7 @@ class NNRhoExpModel(SMATB):
         return NNRhoExp(
             pair_type,
             layers=self.params.get(("rho_layers", pair_type), [20, 20]),
-            reg=self.reg,
+            regularization=self.reg,
             name="Rho-%s" % pair_type,
         )
 
@@ -711,7 +711,7 @@ class CommonNNEmbeddingNNRhoModel(CommonNNEmbeddingModel):
         return NNRho(
             pair_type,
             layers=self.params.get(("rho_layers", pair_type), [20, 20]),
-            reg=self.reg,
+            regularization=self.reg,
             name="Rho-%s" % pair_type,
         )
 

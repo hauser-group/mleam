@@ -20,7 +20,10 @@ class BehlerParrinello(tf.keras.Model):
 
         self.atomic_neural_nets = {
             t: AtomicNeuralNetwork(
-                layers[t], offset_trainable=offset_trainable, reg=reg, name="%s-ANN" % t
+                layers[t],
+                offset_trainable=offset_trainable,
+                regularization=reg,
+                name="%s-ANN" % t,
             )
             for t in atom_types
         }

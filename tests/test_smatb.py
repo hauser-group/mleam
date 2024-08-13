@@ -53,7 +53,7 @@ def test_versus_lammps(resource_path_root, params):
     # Read LAMMPS energy
     with open(resource_path_root / "LAMMPS_SMATB_reference" / "log.lammps", "r") as fin:
         for line in fin:
-            if line.startswith("Step Temp E_pair E_mol TotEng Press"):
+            if line.startswith("   Step          Temp          E_pair "):
                 sp = next(fin).split()
                 e_ref = float(sp[4])
     # Read LAMMPS forces:
@@ -99,7 +99,7 @@ def test_versus_ferrando_code(params, resource_path_root):
 
     # High tolerance since we know that the Ferrando code uses a different
     # cutoff style
-    np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-3)
+    np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-2)
 
 
 def test_body_methods(tmpdir, atol=1e-6):

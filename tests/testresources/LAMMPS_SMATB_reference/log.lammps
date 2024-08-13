@@ -1,5 +1,5 @@
-LAMMPS (12 Dec 2018)
-OMP_NUM_THREADS environment is not set. Defaulting to 1 thread. (src/comm.cpp:87)
+LAMMPS (27 Jun 2024)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread. (src/comm.cpp:98)
   using 1 OpenMP thread(s) per MPI task
 units          metal
 dimension      3
@@ -9,10 +9,12 @@ boundary       f  f  f
 pair_style eam/fs
 
 read_data      data.NiPt
+Reading data file ...
   orthogonal box = (-25 -25 -25) to (25 25 25)
   1 by 1 by 1 MPI processor grid
   reading atoms ...
   38 atoms
+  read_data CPU = 0.001 seconds
 
 pair_coeff * * NiPt.eam.fs Ni Pt
 
@@ -20,25 +22,44 @@ dump 1 all custom 1 dump.force id type fx fy fz
 dump_modify 1 sort id
 
 run 0
-WARNING: No fixes defined, atoms won't move (src/verlet.cpp:55)
+
+CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE
+
+Your simulation uses code contributions which should be cited:
+
+- Type Label Framework: https://doi.org/10.1021/acs.jpcb.3c08419
+
+@Article{Gissinger24,
+ author = {Jacob R. Gissinger, Ilia Nikiforov, Yaser Afshar, Brendon Waters, Moon-ki Choi, Daniel S. Karls, Alexander Stukowski, Wonpil Im, Hendrik Heinz, Axel Kohlmeyer, and Ellad B. Tadmor},
+ title = {Type Label Framework for Bonded Force Fields in LAMMPS},
+ journal = {J. Phys. Chem. B},
+ year =    2024,
+ volume =  128,
+ number =  13,
+ pages =   {3282–-3297}
+}
+
+CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE-CITE
+
+WARNING: No fixes with time integration, atoms won't move (src/verlet.cpp:60)
 Neighbor list info ...
-  update every 1 steps, delay 10 steps, check yes
+  update: every = 1 steps, delay = 0 steps, check = yes
   max neighbors/atom: 2000, page size: 100000
-  master list distance cutoff = 8.0006
-  ghost atom cutoff = 8.0006
+  master list distance cutoff = 8.0006001
+  ghost atom cutoff = 8.0006001
   binsize = 4.0003, bins = 13 13 13
   1 neighbor lists, perpetual/occasional/extra = 1 0 0
   (1) pair eam/fs, perpetual
       attributes: half, newton on
       pair build: half/bin/atomonly/newton
-      stencil: half/bin/3d/newton
+      stencil: half/bin/3d
       bin: standard
-Per MPI rank memory allocation (min/avg/max) = 4.184 | 4.184 | 4.184 Mbytes
-Step Temp E_pair E_mol TotEng Press 
-       0            0   -177.78251            0   -177.78251   -110.13996 
-Loop time of 1.53575e-06 on 1 procs for 0 steps with 38 atoms
+Per MPI rank memory allocation (min/avg/max) = 3.305 | 3.305 | 3.305 Mbytes
+   Step          Temp          E_pair         E_mol          TotEng         Press     
+         0   0             -177.82234      0             -177.82234     -116.29708    
+Loop time of 9.52e-07 on 1 procs for 0 steps with 38 atoms
 
-195.3% CPU use with 1 MPI tasks x 1 OpenMP threads
+210.1% CPU use with 1 MPI tasks x 1 OpenMP threads
 
 MPI task timing breakdown:
 Section |  min time  |  avg time  |  max time  |%varavg| %total
@@ -48,17 +69,17 @@ Neigh   | 0          | 0          | 0          |   0.0 |  0.00
 Comm    | 0          | 0          | 0          |   0.0 |  0.00
 Output  | 0          | 0          | 0          |   0.0 |  0.00
 Modify  | 0          | 0          | 0          |   0.0 |  0.00
-Other   |            | 1.536e-06  |            |       |100.00
+Other   |            | 9.52e-07   |            |       |100.00
 
-Nlocal:    38 ave 38 max 38 min
+Nlocal:             38 ave          38 max          38 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
-Nghost:    0 ave 0 max 0 min
+Nghost:              0 ave           0 max           0 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    695 ave 695 max 695 min
+Neighs:            695 ave         695 max         695 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
 
 Total # of neighbors = 695
-Ave neighs/atom = 18.2895
+Ave neighs/atom = 18.289474
 Neighbor list builds = 0
 Dangerous builds = 0
 Total wall time: 0:00:00
