@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 from mleam.utils import distances_and_pair_types
+from mleam.data_prep import dataset_from_json, preprocessed_dataset_from_json
 from utils import rotation_matrix, derive_array_wrt_array
 
 
@@ -95,3 +96,65 @@ def test_derivative(xyzs, types, atol=1e-5):
     np.testing.assert_allclose(
         dr_dx.merge_dims(0, 1).to_tensor().numpy(), num_dr_dx, atol=atol
     )
+
+
+@pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
+def test_preprocessed_dataset_from_json(resource_path_root, floatx):
+    type_dict = {"Ni": 0, "Pt": 1}
+    dataset = preprocessed_dataset_from_json(
+        resource_path_root / "test_data.json",
+        type_dict,
+        batch_size=4,
+        floatx=floatx,
+        cutoff=5.0,
+    )
+    input, output = next(iter(dataset))
+    assert tuple(input["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert input["types"].dtype == tf.int32
+
+    # NOTE: because of the cutoff we supplied this is not the "expected" (4, 38, 33, 1)
+    # but instead is smaller to optimize the throughput.
+    assert tuple(input["pair_types"].bounding_shape().numpy()) == (4, 38, 33, 1)
+    assert input["pair_types"].dtype == tf.int32
+
+    assert tuple(input["distances"].bounding_shape().numpy()) == (4, 38, 33, 1)
+    assert input["distances"].dtype == floatx
+
+    assert tuple(input["dr_dx"].bounding_shape().numpy()) == (4, 38, 33, 38, 3)
+    assert input["dr_dx"].dtype == floatx
+
+    assert output["energy"].shape == (4, 1)
+    assert output["energy"].dtype == floatx
+
+    assert output["energy_per_atom"].shape == (4, 1)
+    assert output["energy_per_atom"].dtype == floatx
+
+    assert tuple(output["forces"].bounding_shape()) == (4, 38, 3)
+    assert output["forces"].dtype == floatx
+
+
+@pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
+def test_dataset_from_json(resource_path_root, floatx):
+    type_dict = {"Ni": 0, "Pt": 1}
+    dataset = dataset_from_json(
+        resource_path_root / "test_data.json",
+        type_dict,
+        batch_size=4,
+        floatx=floatx,
+    )
+    input, output = next(iter(dataset))
+
+    assert tuple(input["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert input["types"].dtype == tf.int32
+
+    assert tuple(input["positions"].bounding_shape().numpy()) == (4, 38, 3)
+    assert input["positions"].dtype == floatx
+
+    assert output["energy"].shape == (4, 1)
+    assert output["energy"].dtype == floatx
+
+    assert output["energy_per_atom"].shape == (4, 1)
+    assert output["energy_per_atom"].dtype == floatx
+
+    assert tuple(output["forces"].bounding_shape()) == (4, 38, 3)
+    assert output["forces"].dtype == floatx

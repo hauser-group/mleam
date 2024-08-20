@@ -4,22 +4,32 @@ import json
 from mleam.utils import distances_and_pair_types, distances_and_pair_types_no_grad
 
 
+def _output_dataset_from_json(data, forces=False, floatx=tf.float32):
+    energy = tf.expand_dims(tf.constant(data["e_dft_bond"], dtype=floatx), axis=-1)
+    N = tf.constant([[len(sym)] for sym in data["symbols"]], dtype=floatx)
+    energy_per_atom = energy / N
+    output_dict = {"energy": energy, "energy_per_atom": energy_per_atom}
+    if forces:
+        output_dict["forces"] = tf.ragged.constant(
+            data["forces_dft"],
+            ragged_rank=1,
+            dtype=floatx,
+        )
+    return tf.data.Dataset.from_tensor_slices(output_dict)
+
+
 def dataset_from_json(
     path,
     type_dict,
     forces=True,
     batch_size=None,
-    buffer_size=None,
     floatx=tf.float32,
-    shuffle=True,
 ):
     with open(path, "r") as fin:
         data = json.load(fin)
 
     if batch_size is None:
         batch_size = len(data["symbols"])
-        buffer_size = batch_size
-    buffer_size = buffer_size or 4 * batch_size
 
     input_dataset = tf.data.Dataset.from_tensor_slices(
         {
@@ -29,26 +39,18 @@ def dataset_from_json(
                 ),
                 axis=-1,
             ),
-            "positions": tf.ragged.constant(data["positions"], ragged_rank=1),
+            "positions": tf.ragged.constant(
+                data["positions"],
+                ragged_rank=1,
+                dtype=floatx,
+            ),
         }
     )
 
-    N = tf.constant([len(sym) for sym in data["symbols"]], dtype=floatx)
-    energy_per_atom = tf.expand_dims(
-        tf.constant(data["e_dft_bond"], dtype=floatx) / N, axis=-1
-    )
-    output_dict = {"energy_per_atom": energy_per_atom}
-    if forces:
-        output_dict["forces"] = tf.ragged.constant(data["forces_dft"], ragged_rank=1)
-    output_dataset = tf.data.Dataset.from_tensor_slices(output_dict)
+    output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=buffer_size)
-
-    dataset = dataset.apply(
-        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size)
-    )
+    dataset = dataset.ragged_batch(batch_size=batch_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
@@ -59,17 +61,13 @@ def preprocessed_dataset_from_json(
     cutoff=10.0,
     forces=True,
     batch_size=None,
-    buffer_size=None,
     floatx=tf.float32,
-    shuffle=True,
 ):
     with open(path, "r") as fin:
         data = json.load(fin)
 
     if batch_size is None:
         batch_size = len(data["symbols"])
-        buffer_size = batch_size
-    buffer_size = buffer_size or 4 * batch_size
 
     if forces:
 
@@ -98,7 +96,9 @@ def preprocessed_dataset_from_json(
                 ),
                 axis=-1,
             ),
-            "positions": tf.ragged.constant(data["positions"], ragged_rank=1),
+            "positions": tf.ragged.constant(
+                data["positions"], ragged_rank=1, dtype=floatx
+            ),
         }
     )
 
@@ -106,22 +106,10 @@ def preprocessed_dataset_from_json(
         input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE
     )
 
-    N = tf.constant([len(sym) for sym in data["symbols"]], dtype=floatx)
-    energy_per_atom = tf.expand_dims(
-        tf.constant(data["e_dft_bond"], dtype=floatx) / N, axis=-1
-    )
-    output_dict = {"energy_per_atom": energy_per_atom}
-    if forces:
-        output_dict["forces"] = tf.ragged.constant(data["forces_dft"], ragged_rank=1)
-    output_dataset = tf.data.Dataset.from_tensor_slices(output_dict)
+    output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=buffer_size)
-
-    dataset = dataset.apply(
-        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size)
-    )
+    dataset = dataset.ragged_batch(batch_size=batch_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 

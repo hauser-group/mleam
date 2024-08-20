@@ -72,10 +72,18 @@ def test_versus_lammps(resource_path_root, params):
     types = tf.expand_dims(tf.ragged.constant([types]), axis=2)
     positions = tf.ragged.constant([positions], ragged_rank=1)
     prediction = model({"types": types, "positions": positions})
-    energy, forces = prediction["energy_per_atom"], prediction["forces"]
 
-    np.testing.assert_allclose(energy.numpy()[0] * N, e_ref, rtol=1e-6)
-    np.testing.assert_allclose(forces.numpy()[0], forces_ref, atol=1e-5)
+    assert prediction["energy"].shape == (1, 1)
+    assert prediction["energy_per_atom"].shape == (1, 1)
+    assert tuple(prediction["forces"].bounding_shape()) == (1, 38, 3)
+
+    np.testing.assert_allclose(prediction["energy"].numpy()[0], e_ref, atol=1e-5)
+    np.testing.assert_allclose(
+        prediction["energy_per_atom"].numpy()[0],
+        e_ref / N,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(prediction["forces"].numpy()[0], forces_ref, atol=1e-5)
 
 
 def test_versus_ferrando_code(params, resource_path_root):

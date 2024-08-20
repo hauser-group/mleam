@@ -174,7 +174,7 @@ class EAMPotential(tf.keras.Model):
             energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
         )
 
-        return {"energy_per_atom": energy_per_atom}
+        return {"energy": energy, "energy_per_atom": energy_per_atom}
 
     @tf.function(
         input_signature=(
@@ -248,7 +248,11 @@ class EAMPotential(tf.keras.Model):
             )
         else:
             raise NotImplementedError("Unknown force method %s" % self.force_method)
-        return {"energy_per_atom": energy_per_atom, "forces": forces}
+        return {
+            "energy": energy,
+            "energy_per_atom": energy_per_atom,
+            "forces": forces,
+        }
 
     @tf.function
     def body_where(self, types, distances, pair_types):
