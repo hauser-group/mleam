@@ -149,7 +149,7 @@ class BornMayer(tf.keras.layers.Layer):
         )
     )
     def call(self, r_normalized):
-        """r_normalized.shape = (None, 1)"""
+        # r_normalized.shape = (None, 1)
         return self.A * tf.exp(-self.p * r_normalized)
 
 
@@ -171,7 +171,7 @@ class RhoExp(tf.keras.layers.Layer):
         )
     )
     def call(self, r_normalized):
-        """r_normalized.shape = (None, 1)"""
+        # r_normalized.shape = (None, 1)
         return self.xi**2 * tf.exp(-2 * self.q * r_normalized)
 
 
@@ -203,10 +203,7 @@ class RhoTwoExp(tf.keras.layers.Layer):
         )
     )
     def call(self, r_normalized):
-        """r_normalized.shape = (None, 1)
-
-        The output of this function will be squared. Therefore to avoid a
-        binomial mixing term the sqrt of the sum of squares is returned"""
+        # r_normalized.shape = (None, 1)
         return self.xi_1**2 * tf.exp(
             -2 * self.q_1 * r_normalized
         ) + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
@@ -234,7 +231,7 @@ class NNRho(tf.keras.layers.Layer):
         )
     )
     def call(self, r_normalized):
-        """r_normalized.shape = (None, 1)"""
+        # r_normalized.shape = (None, 1)
         nn_results = self.dense_layers[0](tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -263,7 +260,7 @@ class NNRhoExp(tf.keras.layers.Layer):
         )
     )
     def call(self, r_normalized):
-        """r_normalized.shape = (None, 1)"""
+        # r_normalized.shape = (None, 1)
         nn_results = self.dense_layers[0](tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -302,7 +299,7 @@ class SqrtEmbedding(tf.keras.layers.Layer):
         )
     )
     def call(self, rho):
-        """rho.shape = (None, 1)"""
+        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho)
 
 
@@ -322,7 +319,7 @@ class ExtendedEmbedding(tf.keras.layers.Layer):
         )
     )
     def call(self, rho):
-        """rho.shape = (None, 1)"""
+        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho) * (self.c0 + self.c1 * rho)
 
 
@@ -342,7 +339,7 @@ class ExtendedEmbeddingV2(tf.keras.layers.Layer):
         )
     )
     def call(self, rho):
-        """rho.shape = (None, 1)"""
+        # rho.shape = (None, 1)
         return -self.c0 * tf.math.sqrt(rho) - self.c1 * rho
 
 
@@ -365,7 +362,7 @@ class ExtendedEmbeddingV3(tf.keras.layers.Layer):
         )
     )
     def call(self, rho):
-        """rho.shape = (None, 1)"""
+        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho) * (self.c0 + self.c1 * tf.tanh(self.c2 * rho))
 
 
@@ -385,7 +382,7 @@ class ExtendedEmbeddingV4(tf.keras.layers.Layer):
         )
     )
     def call(self, rho):
-        """rho.shape = (None, 1)"""
+        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho) * (self.c0 + (1 - self.c0) * tf.tanh(self.c1 * rho))
 
 
@@ -416,7 +413,7 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
         )
     )
     def call(self, rho):
-        """rho.shape = (None, 1)"""
+        # rho.shape = (None, 1)
         nn_results = self.dense_layers[0](rho)
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -446,7 +443,7 @@ class AtomicNeuralNetwork(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, Gs):
-        """Gs.shape = (None, num_Gs)"""
+        # Gs.shape = (None, num_Gs)
         nn_results = self.dense_layers[0](Gs)
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -466,5 +463,5 @@ class MinMaxDescriptorNorm(tf.keras.layers.Layer):
 
     @tf.function
     def call(self, Gs):
-        """Gs.shape = (None, num_Gs)"""
+        # Gs.shape = (None, num_Gs)
         return (Gs - self.Gs_min) / (self.Gs_max - self.Gs_min) - 1
