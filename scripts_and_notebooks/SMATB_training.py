@@ -2,59 +2,8 @@ import tensorflow as tf
 from tensorflow.python.keras.utils import losses_utils
 from mleam.data_prep import preprocessed_dataset_from_json
 from mleam.models import SMATB
+from mleam.losses import MeanSquaredErrorForces
 import os
-
-
-class RootMeanSquaredMetricForces(tf.keras.metrics.Mean):
-    def __init__(self, name="root_mean_squared_error_forces", dtype=None):
-        super().__init__(name, dtype=dtype)
-
-    def update_state(self, y_true, y_pred, sample_weight=None):
-        """Accumulates root mean squared error statistics.
-
-        Args:
-        y_true: The ground truth values.
-        y_pred: The predicted values.
-        sample_weight: Optional weighting of each example. Defaults to 1. Can be a
-            `Tensor` whose rank is either 0, or the same rank as `y_true`, and must
-            be broadcastable to `y_true`.
-
-        Returns:
-        Update op.
-        """
-        y_true = tf.cast(y_true, self._dtype)
-        y_pred = tf.cast(y_pred, self._dtype)
-        y_pred, y_true = losses_utils.squeeze_or_expand_dimensions(y_pred, y_true)
-        error_sq = tf.reduce_mean(
-            tf.math.squared_difference(y_pred, y_true), axis=[1, 2]
-        )
-        return super().update_state(error_sq, sample_weight=sample_weight)
-
-    def result(self):
-        return tf.math.sqrt(tf.math.divide_no_nan(self.total, self.count))
-
-
-class MeanSquaredErrorForces1(tf.keras.losses.Loss):
-    def call(self, y_true, y_pred):
-        N_atoms = tf.cast(y_true.row_lengths(axis=1), dtype=y_true.dtype)
-        return tf.math.reduce_mean(
-            tf.math.reduce_sum((y_true - y_pred) ** 2, axis=[1, 2]) / N_atoms**2
-        )
-
-
-class MeanSquaredErrorForces2(tf.keras.losses.Loss):
-    def call(self, y_true, y_pred):
-        N_atoms = tf.cast(y_true.row_lengths(axis=1), dtype=y_true.dtype)
-        return tf.math.reduce_mean(
-            (
-                tf.math.reduce_sum(
-                    tf.math.sqrt(tf.math.reduce_sum((y_true - y_pred) ** 2, axis=2)),
-                    axis=1,
-                )
-                / N_atoms
-            )
-            ** 2
-        )
 
 
 def main(random_seed=0):
@@ -107,7 +56,7 @@ def main(random_seed=0):
         optimizer=tf.keras.optimizers.Adam(),
         loss={
             "energy_per_atom": tf.keras.losses.MeanSquaredError(),
-            "forces": MeanSquaredErrorForces1(),
+            "forces": MeanSquaredErrorForces(),
         },
         metrics={
             "energy": [tf.keras.metrics.RootMeanSquaredError()],
@@ -116,7 +65,6 @@ def main(random_seed=0):
             ],
             "forces": [
                 tf.keras.metrics.RootMeanSquaredError(),
-                RootMeanSquaredMetricForces(),
             ],
         },
     )
