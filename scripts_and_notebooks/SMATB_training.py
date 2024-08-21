@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.python.keras.utils import losses_utils
+import numpy as np
 from mleam.data_prep import preprocessed_dataset_from_json
 from mleam.models import SMATB
 from mleam.losses import MeanSquaredErrorForces
@@ -11,19 +11,6 @@ def main(random_seed=0):
     tf.config.experimental.enable_op_determinism()
 
     type_dict = {"Ni": 0, "Pt": 1}
-
-    batch_size = 50
-    # Use smaller cutoff for preprocessed dataset!
-    dataset_train = preprocessed_dataset_from_json(
-        "../data/train_data.json",
-        type_dict,
-        batch_size=batch_size,
-        cutoff=5.006,
-    )
-
-    dataset_val = preprocessed_dataset_from_json(
-        "../data/val_data.json", type_dict, cutoff=5.006
-    )
 
     params = {
         ("A", "PtPt"): 0.1602,
@@ -38,16 +25,34 @@ def main(random_seed=0):
         ("q", "PtPt"): 3.13,
         ("q", "NiPt"): 3.036,
         ("q", "NiNi"): 1.93,
-        ("r0", "PtPt"): 2.77,
-        ("r0", "NiPt"): 2.63,
-        ("r0", "NiNi"): 2.49,
-        ("cut_a", "PtPt"): 4.08707719,
-        ("cut_b", "PtPt"): 5.0056268338740553,
-        ("cut_a", "NiPt"): 4.08707719,
-        ("cut_b", "NiPt"): 4.4340500673763259,
-        ("cut_a", "NiNi"): 3.62038672,
-        ("cut_b", "NiNi"): 4.4340500673763259,
+        ("r0", "PtPt"): 2.775,
+        ("r0", "NiPt"): 2.633,
+        ("r0", "NiNi"): 2.491,
     }
+
+    max_cutoff = 0.0
+    for atom_types in ["PtPt", "NiPt", "NiNi"]:
+        a = params[("r0", atom_types)] * np.sqrt(2)
+        # Inner cutoff fourth neighbor distance (fcc)
+        params[("cut_a", atom_types)] = a * np.sqrt(2)
+        # Outer cutoff fifth neighbor distance (fcc)
+        params[("cut_b", atom_types)] = a * np.sqrt(5 / 2)
+        max_cutoff = max(max_cutoff, params[("cut_b", atom_types)])
+
+    batch_size = 50
+    dataset_train = preprocessed_dataset_from_json(
+        "../data/train_data.json",
+        type_dict,
+        batch_size=batch_size,
+        cutoff=max_cutoff,
+    )
+
+    dataset_val = preprocessed_dataset_from_json(
+        "../data/val_data.json",
+        type_dict,
+        cutoff=max_cutoff,
+    )
+
     model = SMATB(
         ["Ni", "Pt"], params=params, build_forces=True, preprocessed_input=True
     )
@@ -69,7 +74,7 @@ def main(random_seed=0):
         },
     )
 
-    run_name = f"SMATB/force_error1/batch_size_{batch_size}"
+    run_name = f"SMATB/long_cutoff_force1/batch_size_{batch_size}"
     if not os.path.exists(f"./saved_models/{run_name}"):
         os.makedirs(f"./saved_models/{run_name}")
     my_callbacks = [
