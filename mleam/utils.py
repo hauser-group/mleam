@@ -4,6 +4,8 @@ import tensorflow as tf
 
 @tf.function
 def distances_and_pair_types(xyz, types, n_types, cutoff=10.0):
+    cutoff = tf.cast(cutoff, dtype=xyz.dtype)
+
     n = tf.shape(xyz, out_type=tf.int64)[0]
     r_vec = tf.expand_dims(xyz, 0) - tf.expand_dims(xyz, 1)
     distances = tf.sqrt(tf.reduce_sum(r_vec**2, axis=-1, keepdims=True))

@@ -66,6 +66,7 @@ def preprocessed_dataset_from_json(
     with open(path, "r") as fin:
         data = json.load(fin)
 
+    cutoff = tf.cast(cutoff, dtype=floatx)
     if batch_size is None:
         batch_size = len(data["symbols"])
 
