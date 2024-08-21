@@ -189,10 +189,6 @@ def test_body_methods(tmpdir, atol=1e-6):
 
 
 def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
-    try:
-        from atsim.potentials import EAMPotential, Potential
-    except ImportError:
-        pytest.skip("atsim.potentials not installed")
     model = SMATB(["Ni", "Pt"], params=params)
     model.tabulate(
         str(tmpdir / "tmp"),

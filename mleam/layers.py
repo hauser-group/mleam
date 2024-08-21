@@ -150,7 +150,7 @@ class BornMayer(tf.keras.layers.Layer):
     )
     def call(self, r_normalized):
         # r_normalized.shape = (None, 1)
-        return self.A * tf.exp(-self.p * r_normalized)
+        return 2 * self.A * tf.exp(-self.p * r_normalized)
 
 
 class RhoExp(tf.keras.layers.Layer):

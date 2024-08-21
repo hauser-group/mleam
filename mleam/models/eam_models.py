@@ -290,7 +290,7 @@ class EAMPotential(tf.keras.Model):
                 ),
                 embedding_energies,
             )
-        atomic_energies = sum_phi + embedding_energies
+        atomic_energies = 0.5 * sum_phi + embedding_energies
 
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
@@ -355,7 +355,7 @@ class EAMPotential(tf.keras.Model):
             type_indices, embedding_energies, name="embedding_energies"
         )
 
-        atomic_energies = sum_phi.flat_values + embedding_energies
+        atomic_energies = 0.5 * sum_phi.flat_values + embedding_energies
         # Reshape to ragged
         atomic_energies = tf.RaggedTensor.from_row_splits(
             atomic_energies, types.row_splits, name="atomic_energies"
@@ -388,7 +388,7 @@ class EAMPotential(tf.keras.Model):
         phi = tf.RaggedTensor.from_nested_row_splits(phi, distances.nested_row_splits)
         rho = tf.RaggedTensor.from_nested_row_splits(rho, distances.nested_row_splits)
         # Sum over atoms j and flatten again
-        atomic_energies = tf.reduce_sum(phi, axis=-2).flat_values
+        atomic_energies = 0.5 * tf.reduce_sum(phi, axis=-2).flat_values
         sum_rho = tf.reduce_sum(rho, axis=-2).flat_values
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
@@ -438,19 +438,7 @@ class EAMPotential(tf.keras.Model):
             " from the tensorflow implementation!"
         )
 
-        def pair_wrapper(fun):
-            def wrapped_fun(x):
-                return 2 * fun(tf.reshape(x, (1, 1)))
-
-            return wrapped_fun
-
-        def rho_wrapper(fun):
-            def wrapped_fun(x):
-                return fun(tf.reshape(x, (1, 1)))
-
-            return wrapped_fun
-
-        def F_wrapper(fun):
+        def wrapper(fun):
             def wrapped_fun(x):
                 return fun(tf.reshape(x, (1, 1)))
 
@@ -465,11 +453,11 @@ class EAMPotential(tf.keras.Model):
                 Potential(
                     t1,
                     t2,
-                    pair_wrapper(self.pair_potentials[pair_type]),
+                    wrapper(self.pair_potentials[pair_type]),
                 )
             )
-            pair_densities[t1][t2] = rho_wrapper(self.pair_rho[pair_type])
-            pair_densities[t2][t1] = rho_wrapper(self.pair_rho[pair_type])
+            pair_densities[t1][t2] = wrapper(self.pair_rho[pair_type])
+            pair_densities[t2][t1] = wrapper(self.pair_rho[pair_type])
 
         eam_potentials = []
         for t in self.atom_types:
@@ -478,7 +466,7 @@ class EAMPotential(tf.keras.Model):
                     t,
                     atomic_numbers[t],
                     atomic_masses[t],
-                    F_wrapper(self.embedding_functions[t]),
+                    wrapper(self.embedding_functions[t]),
                     pair_densities[t],
                     latticeConstant=lattice_constants.get(t, 0.0),
                     latticeType=lattice_types.get(t, "fcc"),
