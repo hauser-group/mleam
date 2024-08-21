@@ -461,16 +461,11 @@ class EAMPotential(tf.keras.Model):
         for t1, t2 in combinations_with_replacement(self.atom_types, 2):
             pair_type = "".join([t1, t2])
 
-            def pair_pot(x):
-                return self.pair_potentials[pair_type](tf.reshape(x, (1, 1)))
-
             pair_potentials.append(
                 Potential(
                     t1,
                     t2,
                     pair_wrapper(self.pair_potentials[pair_type]),
-                    # lambda x: self.pair_potentials[pair_type](
-                    #    x*tf.ones((1, 1)))
                 )
             )
             pair_densities[t1][t2] = rho_wrapper(self.pair_rho[pair_type])
@@ -575,6 +570,26 @@ class SMATB(EAMPotential):
 
     def get_embedding(self, type):
         return SqrtEmbedding(name="%s-Embedding" % type)
+
+
+class FinnisSinclair(EAMPotential):
+    def __init__(
+        self,
+        atom_types,
+        params={},
+        offset_trainable=True,
+        **kwargs,
+    ):
+        # Determine the maximum cutoff value to pass to DeepEAMPotential.
+        # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
+        # The 'or' in the max function is used as fallback in case the list
+        # comprehension returns an empty list
+        cutoff = max(
+            [params.get(key, 7.5) for key in params if key[0] == "cut_b"] or [7.5]
+        )
+        self.params = params
+        self.offset_trainable = offset_trainable
+        super().__init__(atom_types, cutoff=cutoff, **kwargs)
 
 
 class CommonEmbeddingSMATB(SMATB):
