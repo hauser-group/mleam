@@ -199,3 +199,41 @@ def descriptor_dataset_from_json(
     )
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
+
+
+def fcc_bulk_curve(type_dict: dict, atom_type: str, a: np.ndarray = np.array([4.0])):
+    # Use type_dict and atom_type to infer the pair_type
+    n_types = len(type_dict)
+    int_type = type_dict[atom_type]
+    pair_type = n_types * int_type - (int_type * (int_type - 1)) // 2
+
+    shells = [12, 6, 24, 12, 24]
+    n_neighbors = sum(shells)
+
+    distances = np.zeros((len(a), 1, n_neighbors, 1))
+
+    start = 0
+    for i, coordination_number in enumerate(shells):
+        r = a * np.sqrt((i + 1) / 2)
+        distances[:, 0, start : start + shells[i], 0] = r[:, np.newaxis]
+        start += shells[i]
+
+    input_dict = {
+        "types": tf.ragged.constant(
+            int_type * np.ones(shape=(len(a), 1, 1), dtype=np.int32),
+            ragged_rank=1,
+        ),
+        "pair_types": tf.ragged.constant(
+            pair_type * np.ones_like(distances, dtype=np.int32), ragged_rank=2
+        ),
+        "distances": tf.ragged.constant(distances.tolist(), ragged_rank=2),
+        "dr_dx": tf.ragged.constant(
+            np.zeros((len(a), 1, n_neighbors, 1, 3)).tolist(), ragged_rank=3
+        ),
+    }
+
+    input_dataset = tf.data.Dataset.from_tensor_slices(input_dict).ragged_batch(
+        batch_size=len(a)
+    )
+
+    return input_dataset
