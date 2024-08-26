@@ -596,8 +596,10 @@ class FinnisSinclair(EAMPotential):
     def get_rho(self, pair_type):
         return FinnisSinclairRho(
             pair_type,
+            A=self.params.get(("A", pair_type), 1.0),
             d=self.params.get(("d", pair_type), 5.0),
             beta=self.params.get(("beta", pair_type), 0.1),
+            beta_trainable=self.hyperparams.get("beta_trainable", True),
             name="Rho-%s" % pair_type,
         )
 

@@ -318,9 +318,20 @@ class SuttonChenRho(PairRho):
 
 
 class FinnisSinclairRho(PairRho):
-    def __init__(self, pair_type: str, d: float = 5.0, beta: float = 0.1, **kwargs):
+    def __init__(
+        self,
+        pair_type: str,
+        A: float = 1.0,
+        d: float = 5.0,
+        beta: float = 0.1,
+        beta_trainable: bool = True,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.pair_type = pair_type
+        self.A = self.add_weight(
+            shape=(1), name="A_" + pair_type, initializer=tf.constant_initializer(A)
+        )
         self.d = self.add_weight(
             shape=(1), name="d_" + pair_type, initializer=tf.constant_initializer(d)
         )
@@ -328,6 +339,7 @@ class FinnisSinclairRho(PairRho):
             shape=(1),
             name="beta_" + pair_type,
             initializer=tf.constant_initializer(beta),
+            trainable=beta_trainable,
         )
         self._supports_ragged_inputs = True
 
@@ -340,7 +352,7 @@ class FinnisSinclairRho(PairRho):
         # r = (None, 1)
         return tf.where(
             r <= self.d,
-            (r - self.d) ** 2 + self.beta * (r - self.d) ** 3 / self.d,
+            self.A * ((r - self.d) ** 2 + self.beta * (r - self.d) ** 3 / self.d),
             tf.zeros_like(r),
         )
 
