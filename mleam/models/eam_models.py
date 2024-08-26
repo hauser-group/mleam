@@ -90,16 +90,8 @@ class EAMPotential(tf.keras.Model):
         self.force_method = force_method
 
         inputs = {"types": tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)}
+
         if self.preprocessed_input:
-            # Determine the maximum cutoff value to pass to DeepEAMPotential.
-            # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
-            # The 'or' in the max function is used as fallback in case the list
-            # comprehension returns an empty list
-            if cutoff is None:
-                cutoff = max(
-                    [params.get(key, 7.5) for key in params if key[0] == "cut_b"]
-                    or [7.5]
-                )
             inputs["pair_types"] = tf.keras.Input(
                 shape=(None, None, 1), ragged=True, dtype=inputs["types"].dtype
             )
@@ -111,6 +103,15 @@ class EAMPotential(tf.keras.Model):
                 )
         else:
             self.cutoff = cutoff
+            if self.cutoff is None:
+                # Determine the maximum cutoff value to pass to DeepEAMPotential.
+                # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
+                # The 'or' in the max function is used as fallback in case the list
+                # comprehension returns an empty list
+                self.cutoff = max(
+                    [params.get(key, 7.5) for key in params if key[0] == "cut_b"]
+                    or [7.5]
+                )
             inputs["positions"] = tf.keras.Input(shape=(None, 3), ragged=True)
 
         self._set_inputs(inputs)
@@ -696,7 +697,7 @@ class NNEmbeddingModel(SMATB):
     def get_embedding(self, type):
         return NNSqrtEmbedding(
             layers=self.params.get(("F_layers", type), [20, 20]),
-            regularization=self.reg,
+            regularization=self.hyperparams.get("regularization", 1e-5),
             name="%s-Embedding" % type,
         )
 
@@ -707,7 +708,7 @@ class CommonNNEmbeddingModel(CommonEmbeddingSMATB):
         # tuple is used.
         return NNSqrtEmbedding(
             layers=self.params.get(("F_layers",), [20, 20]),
-            regularization=self.reg,
+            regularization=self.hyperparams.get("regularization", 1e-5),
             name="Common-Embedding",
         )
 
@@ -729,7 +730,7 @@ class NNRhoModel(SMATB):
         return NNRho(
             pair_type,
             layers=self.params.get(("rho_layers", pair_type), [20, 20]),
-            regularization=self.reg,
+            regularization=self.hyperparams.get("regularization", 1e-5),
             name="Rho-%s" % pair_type,
         )
 
@@ -739,7 +740,7 @@ class NNRhoExpModel(SMATB):
         return NNRhoExp(
             pair_type,
             layers=self.params.get(("rho_layers", pair_type), [20, 20]),
-            regularization=self.reg,
+            regularization=self.hyperparams.get("regularization", 1e-5),
             name="Rho-%s" % pair_type,
         )
 
@@ -769,7 +770,7 @@ class CommonNNEmbeddingNNRhoModel(CommonNNEmbeddingModel):
         return NNRho(
             pair_type,
             layers=self.params.get(("rho_layers", pair_type), [20, 20]),
-            regularization=self.reg,
+            regularization=self.hyperparams.get("regularization", 1e-5),
             name="Rho-%s" % pair_type,
         )
 
