@@ -158,9 +158,10 @@ class SMATBTest(ModelTest.ModelTest):
             atom_types, params={"foo": 0}, build_forces=True, **kwargs
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(12))
         initial_params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -214,9 +215,10 @@ class CommonExtendedEmbeddingV4ModelTest(SMATBTest):
 class RhoTwoExpModelTest(SMATBTest):
     model_class = RhoTwoExpModel
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 18 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(18))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(18))
         initial_params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -278,9 +280,10 @@ class NNEmbeddingModelTest(ModelTest.ModelTest):
             **kwargs,
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(12))
         params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -324,9 +327,10 @@ class NNRhoModelTest(ModelTest.ModelTest):
             **kwargs,
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 6 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(6))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(6))
         params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -365,9 +369,10 @@ class NNRhoExpModelTest(ModelTest.ModelTest):
             **kwargs,
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 6 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(6))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(6))
         params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -410,9 +415,10 @@ class NNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
             **kwargs,
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(12))
         params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -456,9 +462,10 @@ class CommonNNEmbeddingModelTest(ModelTest.ModelTest):
             atom_types, params={("F_layers",): [12, 8]}, build_forces=True, **kwargs
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(12))
         params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
@@ -504,9 +511,10 @@ class CommonNNEmbeddingNNRhoModelTest(ModelTest.ModelTest):
             **kwargs,
         )
 
-    def get_random_model(self, atom_types=["Ni", "Pt"], **kwargs):
+    def get_random_model(self, atom_types=["Ni", "Pt"], seed=0, **kwargs):
         # Generate 12 random positive numbers for the SMATB parameters
-        p = np.abs(np.random.randn(12))
+        rng = np.random.default_rng(seed)
+        p = np.abs(rng.standard_normal(12))
         params = {
             ("A", "PtPt"): p[0],
             ("A", "NiPt"): p[1],
