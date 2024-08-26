@@ -3,11 +3,16 @@ from tensorflow.python.ops.ragged.ragged_where_op import where as ragged_where
 from itertools import combinations_with_replacement
 from mleam.layers import (
     PairInteraction,
+    NormalizedPairInteraction,
     PolynomialCutoffFunction,
     OffsetLayer,
     InputNormalization,
     BornMayer,
     RhoExp,
+    SuttonChenPhi,
+    SuttonChenRho,
+    FinnisSinclairPhi,
+    FinnisSinclairRho,
     RhoTwoExp,
     NNRho,
     NNRhoExp,
@@ -19,18 +24,23 @@ from mleam.layers import (
     NNSqrtEmbedding,
 )
 from mleam.utils import distances_and_pair_types
+from mleam.constants import InputNormType
 import warnings
 
 
 class EAMPotential(tf.keras.Model):
     """Base class for all EAM based potentials"""
 
+    hyperparams = {"offset_trainable": False}
+
     def __init__(
         self,
         atom_types,
+        params={},
+        hyperparams={},
         build_forces=False,
         preprocessed_input=False,
-        cutoff=10.0,
+        cutoff=None,
         method="partition_stitch",
         force_method="old",
     ):
@@ -61,6 +71,9 @@ class EAMPotential(tf.keras.Model):
         super().__init__()
 
         self.atom_types = atom_types
+        self.params = params
+        self.hyperparams.update(hyperparams)
+
         self.type_dict = {}
         for i, t in enumerate(atom_types):
             self.type_dict[t] = i
@@ -70,6 +83,7 @@ class EAMPotential(tf.keras.Model):
             t = "".join([t1, t2])
             self.atom_pair_types.append(t)
             self.pair_type_dict[t] = i
+
         self.build_forces = build_forces
         self.preprocessed_input = preprocessed_input
         self.method = method
@@ -77,6 +91,15 @@ class EAMPotential(tf.keras.Model):
 
         inputs = {"types": tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)}
         if self.preprocessed_input:
+            # Determine the maximum cutoff value to pass to DeepEAMPotential.
+            # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
+            # The 'or' in the max function is used as fallback in case the list
+            # comprehension returns an empty list
+            if cutoff is None:
+                cutoff = max(
+                    [params.get(key, 7.5) for key in params if key[0] == "cut_b"]
+                    or [7.5]
+                )
             inputs["pair_types"] = tf.keras.Input(
                 shape=(None, None, 1), ragged=True, dtype=inputs["types"].dtype
             )
@@ -100,7 +123,64 @@ class EAMPotential(tf.keras.Model):
         ) = self.build_functions()
 
     def build_functions(self):
-        pass
+        pair_potentials = {}
+        pair_rho = {}
+        for t1, t2 in combinations_with_replacement(self.atom_types, 2):
+            pair_type = "".join([t1, t2])
+
+            cutoff_function = PolynomialCutoffFunction(
+                pair_type,
+                a=self.params.get(("cut_a", pair_type), 5.0),
+                b=self.params.get(("cut_b", pair_type), 7.5),
+            )
+            pair_potential = self.get_pair_potential(pair_type)
+            rho = self.get_rho(pair_type)
+
+            if (
+                pair_potential.input_norm == InputNormType.SCALED
+                or rho.input_norm == InputNormType.SCALED
+            ):
+                # A input normalization layer is needed for potential
+                # sharing of the parameter r0 between phi and rho layers
+                scaled_input = InputNormalization(
+                    pair_type,
+                    r0=self.params.get(("r0", pair_type), 2.7),
+                    trainable=self.hyperparams.get("r0_trainable", False),
+                )
+
+            if pair_potential.input_norm == InputNormType.SCALED:
+                pair_potentials[pair_type] = NormalizedPairInteraction(
+                    input_normalization=scaled_input,
+                    pair_interaction=pair_potential,
+                    cutoff_function=cutoff_function,
+                    name=f"{pair_type}-phi",
+                )
+            else:
+                pair_potentials[pair_type] = PairInteraction(
+                    pair_interaction=pair_potential,
+                    cutoff_function=cutoff_function,
+                    name=f"{pair_type}-phi",
+                )
+
+            if rho.input_norm == InputNormType.SCALED:
+                pair_rho[pair_type] = NormalizedPairInteraction(
+                    input_normalization=scaled_input,
+                    pair_interaction=rho,
+                    cutoff_function=cutoff_function,
+                    name=f"{pair_type}-rho",
+                )
+            else:
+                pair_rho[pair_type] = PairInteraction(
+                    pair_interaction=rho,
+                    cutoff_function=cutoff_function,
+                    name=f"{pair_type}-rho",
+                )
+        embedding_functions = {t: self.get_embedding(t) for t in self.atom_types}
+        offsets = {
+            t: OffsetLayer(t, self.hyperparams["offset_trainable"], name=f"{t}-offset")
+            for t in self.atom_types
+        }
+        return pair_potentials, pair_rho, embedding_functions, offsets
 
     def call(self, inputs):
         if self.preprocessed_input:
@@ -482,64 +562,6 @@ class EAMPotential(tf.keras.Model):
 
 
 class SMATB(EAMPotential):
-    def __init__(
-        self,
-        atom_types,
-        params={},
-        r0_trainable=False,
-        offset_trainable=True,
-        reg=None,
-        **kwargs,
-    ):
-        """TODO: __init__ can not be called with params={}: raises
-        tensorflow error"""
-        # Determine the maximum cutoff value to pass to DeepEAMPotential.
-        # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
-        # The 'or' in the max function is used as fallback in case the list
-        # comprehension returns an empty list
-        cutoff = max(
-            [params.get(key, 7.5) for key in params if key[0] == "cut_b"] or [7.5]
-        )
-        self.params = params
-        self.r0_trainable = r0_trainable
-        self.offset_trainable = offset_trainable
-        self.reg = reg
-        super().__init__(atom_types, cutoff=cutoff, **kwargs)
-
-    def build_functions(self):
-        # TODO should probably move to parent class
-        pair_potentials = {}
-        pair_rho = {}
-        for t1, t2 in combinations_with_replacement(self.atom_types, 2):
-            pair_type = "".join([t1, t2])
-            normalized_input = InputNormalization(
-                pair_type,
-                r0=self.params.get(("r0", pair_type), 2.7),
-                trainable=self.r0_trainable,
-            )
-            cutoff_function = PolynomialCutoffFunction(
-                pair_type,
-                a=self.params.get(("cut_a", pair_type), 5.0),
-                b=self.params.get(("cut_b", pair_type), 7.5),
-            )
-            pair_potential = self.get_pair_potential(pair_type)
-            rho = self.get_rho(pair_type)
-            pair_potentials[pair_type] = PairInteraction(
-                normalized_input,
-                pair_potential,
-                cutoff_function,
-                name="%s-phi" % pair_type,
-            )
-            pair_rho[pair_type] = PairInteraction(
-                normalized_input, rho, cutoff_function, name="%s-rho" % pair_type
-            )
-        embedding_functions = {t: self.get_embedding(t) for t in self.atom_types}
-        offsets = {
-            t: OffsetLayer(t, self.offset_trainable, name="%s-offset" % t)
-            for t in self.atom_types
-        }
-        return pair_potentials, pair_rho, embedding_functions, offsets
-
     def get_pair_potential(self, pair_type):
         return BornMayer(
             pair_type,
@@ -556,28 +578,52 @@ class SMATB(EAMPotential):
             name="Rho-%s" % pair_type,
         )
 
-    def get_embedding(self, type):
-        return SqrtEmbedding(name="%s-Embedding" % type)
+    def get_embedding(self, atom_type):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
 
 
 class FinnisSinclair(EAMPotential):
-    def __init__(
-        self,
-        atom_types,
-        params={},
-        offset_trainable=True,
-        **kwargs,
-    ):
-        # Determine the maximum cutoff value to pass to DeepEAMPotential.
-        # Defaults to 7.5 if 'cut_b' if missing for one or all pair_types.
-        # The 'or' in the max function is used as fallback in case the list
-        # comprehension returns an empty list
-        cutoff = max(
-            [params.get(key, 7.5) for key in params if key[0] == "cut_b"] or [7.5]
+    def get_pair_potential(self, pair_type):
+        return FinnisSinclairPhi(
+            pair_type,
+            c=self.params.get(("c", pair_type), 5.0),
+            c0=self.params.get(("c0", pair_type), 1.0),
+            c1=self.params.get(("c1", pair_type), 1.0),
+            c2=self.params.get(("c2", pair_type), 1.0),
+            name="Phi-%s" % pair_type,
         )
-        self.params = params
-        self.offset_trainable = offset_trainable
-        super().__init__(atom_types, cutoff=cutoff, **kwargs)
+
+    def get_rho(self, pair_type):
+        return FinnisSinclairRho(
+            pair_type,
+            d=self.params.get(("d", pair_type), 5.0),
+            beta=self.params.get(("beta", pair_type), 0.1),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
+
+
+class SuttonChen(EAMPotential):
+    def get_pair_potential(self, pair_type):
+        return SuttonChenPhi(
+            pair_type,
+            c=self.params.get(("c", pair_type), 3.0),
+            n=self.params.get(("n", pair_type), 6),
+            name="Phi-%s" % pair_type,
+        )
+
+    def get_rho(self, pair_type):
+        return SuttonChenRho(
+            pair_type,
+            a=self.params.get(("a", pair_type), 3.0),
+            m=self.params.get(("m", pair_type), 6),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
 
 
 class CommonEmbeddingSMATB(SMATB):
@@ -589,7 +635,7 @@ class CommonEmbeddingSMATB(SMATB):
             normalized_input = InputNormalization(
                 pair_type,
                 r0=self.params.get(("r0", pair_type), 2.7),
-                trainable=self.r0_trainable,
+                trainable=self.hyperparams.get("r0_trainable", False),
             )
             cutoff_function = PolynomialCutoffFunction(
                 pair_type,
@@ -598,19 +644,22 @@ class CommonEmbeddingSMATB(SMATB):
             )
             pair_potential = self.get_pair_potential(pair_type)
             rho = self.get_rho(pair_type)
-            pair_potentials[pair_type] = PairInteraction(
-                normalized_input,
-                pair_potential,
-                cutoff_function,
+            pair_potentials[pair_type] = NormalizedPairInteraction(
+                input_normalization=normalized_input,
+                pair_interaction=pair_potential,
+                cutoff_function=cutoff_function,
                 name="%s-phi" % pair_type,
             )
-            pair_rho[pair_type] = PairInteraction(
-                normalized_input, rho, cutoff_function, name="%s-rho" % pair_type
+            pair_rho[pair_type] = NormalizedPairInteraction(
+                input_normalization=normalized_input,
+                pair_interaction=rho,
+                cutoff_function=cutoff_function,
+                name="%s-rho" % pair_type,
             )
         embedding_function = self.get_embedding()
         embedding_functions = {t: embedding_function for t in self.atom_types}
         offsets = {
-            t: OffsetLayer(t, self.offset_trainable, name="%s-offset" % t)
+            t: OffsetLayer(t, self.hyperparams["offset_trainable"], name=f"{t}-offset")
             for t in self.atom_types
         }
         return pair_potentials, pair_rho, embedding_functions, offsets

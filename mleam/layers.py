@@ -1,4 +1,5 @@
 import tensorflow as tf
+from mleam.constants import InputNormType
 
 
 class PolynomialCutoffFunction(tf.keras.layers.Layer):
@@ -131,7 +132,58 @@ class InputNormalization(tf.keras.layers.Layer):
         return r / self.r0 - 1.0
 
 
-class BornMayer(tf.keras.layers.Layer):
+class PairInteraction(tf.keras.layers.Layer):
+    """Calls a pair interaction and multiplies it be the cutoff function"""
+
+    def __init__(self, pair_interaction, cutoff_function, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_interaction = pair_interaction
+        self.cutoff_function = cutoff_function
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        return self.pair_interaction(r) * self.cutoff_function(r)
+
+
+class NormalizedPairInteraction(PairInteraction):
+    """Normalizes the input and feeds it to a pair potential"""
+
+    def __init__(self, input_normalization, **kwargs):
+        super().__init__(**kwargs)
+        self.input_normalization = input_normalization
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        return self.pair_interaction(
+            self.input_normalization(r)
+        ) * self.cutoff_function(r)
+
+
+class PairPhi(tf.keras.layers.Layer):
+    input_norm = InputNormType.NONE
+
+
+class PairPhiScaledInput(PairPhi):
+    input_norm = InputNormType.SCALED
+
+
+class PairRho(tf.keras.layers.Layer):
+    input_norm = InputNormType.NONE
+
+
+class PairRhoScaledInput(PairRho):
+    input_norm = InputNormType.SCALED
+
+
+class BornMayer(PairPhiScaledInput):
     def __init__(self, pair_type, A=0.2, p=9.2, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -153,7 +205,72 @@ class BornMayer(tf.keras.layers.Layer):
         return 2 * self.A * tf.exp(-self.p * r_normalized)
 
 
-class RhoExp(tf.keras.layers.Layer):
+class SuttonChenPhi(PairPhi):
+    def __init__(self, pair_type: str, c: float = 3.0, n: int = 6, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.c = self.add_weight(
+            shape=(1), name="c_" + pair_type, initializer=tf.constant_initializer(c)
+        )
+        self.n = self.add_weight(
+            shape=(1),
+            name="n_" + pair_type,
+            initializer=tf.constant_initializer(n),
+            trainable=False,
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        return (self.c / r) ** self.n
+
+
+class FinnisSinclairPhi(PairPhi):
+    def __init__(
+        self,
+        pair_type: str,
+        c: float = 5.0,
+        c0: float = 1.0,
+        c1: float = 0.0,
+        c2: float = 0.0,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.c = self.add_weight(
+            shape=(1), name="c_" + pair_type, initializer=tf.constant_initializer(c)
+        )
+        self.c0 = self.add_weight(
+            shape=(1), name="c0_" + pair_type, initializer=tf.constant_initializer(c0)
+        )
+        self.c1 = self.add_weight(
+            shape=(1), name="c1_" + pair_type, initializer=tf.constant_initializer(c1)
+        )
+        self.c2 = self.add_weight(
+            shape=(1), name="c2_" + pair_type, initializer=tf.constant_initializer(c2)
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        return tf.where(
+            r <= self.c,
+            (r - self.c) ** 2 * (self.c0 + self.c1 * r + self.c2 * r**2),
+            tf.zeros_like(r),
+        )
+
+
+class RhoExp(PairRhoScaledInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -175,7 +292,60 @@ class RhoExp(tf.keras.layers.Layer):
         return self.xi**2 * tf.exp(-2 * self.q * r_normalized)
 
 
-class RhoTwoExp(tf.keras.layers.Layer):
+class SuttonChenRho(PairRho):
+    def __init__(self, pair_type: str, a: float = 3.0, m: int = 6, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.a = self.add_weight(
+            shape=(1), name="a_" + pair_type, initializer=tf.constant_initializer(a)
+        )
+        self.m = self.add_weight(
+            shape=(1),
+            name="m_" + pair_type,
+            initializer=tf.constant_initializer(m),
+            trainable=False,
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        return (self.a / r) ** self.m
+
+
+class FinnisSinclairRho(PairRho):
+    def __init__(self, pair_type: str, d: float = 5.0, beta: float = 0.1, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.d = self.add_weight(
+            shape=(1), name="d_" + pair_type, initializer=tf.constant_initializer(d)
+        )
+        self.beta = self.add_weight(
+            shape=(1),
+            name="beta_" + pair_type,
+            initializer=tf.constant_initializer(beta),
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        return tf.where(
+            r <= self.d,
+            (r - self.d) ** 2 + self.beta * (r - self.d) ** 3 / self.d,
+            tf.zeros_like(r),
+        )
+
+
+class RhoTwoExp(PairRhoScaledInput):
     def __init__(self, pair_type, xi_1=1.6, q_1=3.5, xi_2=0.8, q_2=1.0, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -209,7 +379,7 @@ class RhoTwoExp(tf.keras.layers.Layer):
         ) + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
 
 
-class NNRho(tf.keras.layers.Layer):
+class NNRho(PairRhoScaledInput):
     def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -238,7 +408,7 @@ class NNRho(tf.keras.layers.Layer):
         return tf.squeeze(nn_results, axis=-1)
 
 
-class NNRhoExp(tf.keras.layers.Layer):
+class NNRhoExp(PairRhoScaledInput):
     def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -265,28 +435,6 @@ class NNRhoExp(tf.keras.layers.Layer):
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
         return tf.exp(tf.squeeze(nn_results, axis=-1))
-
-
-class PairInteraction(tf.keras.layers.Layer):
-    """Normalizes the input and feeds it to a pair potential"""
-
-    def __init__(
-        self, input_normalization, pair_interaction, cutoff_function, **kwargs
-    ):
-        super().__init__(**kwargs)
-        self.input_normalization = input_normalization
-        self.pair_interaction = pair_interaction
-        self.cutoff_function = cutoff_function
-
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
-    def call(self, r):
-        return self.pair_interaction(
-            self.input_normalization(r)
-        ) * self.cutoff_function(r)
 
 
 class SqrtEmbedding(tf.keras.layers.Layer):
