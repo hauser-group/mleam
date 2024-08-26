@@ -14,7 +14,18 @@ def distances_and_pair_types(xyz, types, n_types, cutoff=10.0):
         tf.less_equal(distances[:, :, 0], cutoff),
     )
 
+    # Determine pair_type using the following scheme:
+    # Example using 3 atom types:
+    #     A B C
+    #   A 0
+    #   B 1 3
+    #   C 2 4 5
+    # A bond of type A-C would therefore be assigned the integer 2.
+    # First figure out the column we are in (essentially just sorting the
+    # two involved pair types)
     min_ij = tf.math.minimum(types[:, tf.newaxis], types[tf.newaxis, :])
+    # TODO: is the second line really needed here? Should be generalized to
+    # asymmetric functions anyway
     pair_types = (
         n_types * min_ij
         - (min_ij * (min_ij - 1)) // 2
