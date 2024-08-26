@@ -1,6 +1,7 @@
 from .eam_models import (
     SMATB,
     SuttonChen,
+    FinnisSinclair,
     ExtendedEmbeddingModel,
     ExtendedEmbeddingV2Model,
     ExtendedEmbeddingV3Model,
@@ -24,6 +25,7 @@ from .bp_model import BehlerParrinello
 __all__ = [
     "SMATB",
     "SuttonChen",
+    "FinnisSinclair",
     "ExtendedEmbeddingModel",
     "ExtendedEmbeddingV2Model",
     "ExtendedEmbeddingV3Model",

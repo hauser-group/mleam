@@ -323,7 +323,7 @@ class FinnisSinclairRho(PairRho):
         pair_type: str,
         A: float = 1.0,
         d: float = 5.0,
-        beta: float = 0.1,
+        beta: float = 0.0,
         beta_trainable: bool = True,
         **kwargs,
     ):
