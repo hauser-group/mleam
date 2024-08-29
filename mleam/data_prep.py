@@ -120,19 +120,15 @@ def descriptor_dataset_from_json(
     descriptor_set,
     forces=True,
     batch_size=None,
-    buffer_size=None,
     floatx=tf.float32,
     Gs_min=None,
     Gs_max=None,
-    shuffle=True,
 ):
     with open(path, "r") as fin:
         data = json.load(fin)
 
     if batch_size is None:
         batch_size = len(data["symbols"])
-        buffer_size = batch_size
-    buffer_size = buffer_size or 4 * batch_size
 
     types = tf.expand_dims(
         tf.ragged.constant(
@@ -181,22 +177,10 @@ def descriptor_dataset_from_json(
 
     input_dataset = tf.data.Dataset.from_generator(gen, input_types, input_shapes)
 
-    N = tf.constant([len(sym) for sym in data["symbols"]], dtype=floatx)
-    energy_per_atom = tf.expand_dims(
-        tf.constant(data["e_dft_bond"], dtype=floatx) / N, axis=-1
-    )
-    output_dict = {"energy_per_atom": energy_per_atom}
-    if forces:
-        output_dict["forces"] = tf.ragged.constant(data["forces_dft"], ragged_rank=1)
-    output_dataset = tf.data.Dataset.from_tensor_slices(output_dict)
+    output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=buffer_size)
-
-    dataset = dataset.apply(
-        tf.data.experimental.dense_to_ragged_batch(batch_size=batch_size)
-    )
+    dataset = dataset.ragged_batch(batch_size=batch_size)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 

@@ -61,7 +61,7 @@ class BehlerParrinello(tf.keras.Model):
             energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
         )
 
-        return {"energy_per_atom": energy_per_atom}
+        return {"energy": energy, "energy_per_atom": energy_per_atom}
 
     @tf.function
     def main_body_with_forces(self, types, Gs, dGs):
@@ -92,7 +92,7 @@ class BehlerParrinello(tf.keras.Model):
         forces = -tf.reduce_sum(
             dGs * tf.expand_dims(dE_dG, -1), axis=(-3, -4), name="dE_dG_times_dG_dx"
         )
-        return {"energy_per_atom": energy_per_atom, "forces": forces}
+        return {"energy": energy, "energy_per_atom": energy_per_atom, "forces": forces}
 
     @tf.function
     def body_partition_stitch(self, types, Gs):

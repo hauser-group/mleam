@@ -2,8 +2,13 @@ import pytest
 import numpy as np
 import tensorflow as tf
 from mleam.utils import distances_and_pair_types
-from mleam.data_prep import dataset_from_json, preprocessed_dataset_from_json
+from mleam.data_prep import (
+    dataset_from_json,
+    preprocessed_dataset_from_json,
+    descriptor_dataset_from_json,
+)
 from utils import rotation_matrix, derive_array_wrt_array
+from itertools import product
 
 
 @pytest.fixture
@@ -62,7 +67,7 @@ def test_pair_types(xyzs, types):
 
 
 def test_invariance(xyzs, types, atol=1e-6):
-    # Test invariance with respect to an arbitray rotation and translation
+    # Test invariance with respect to an arbitrary rotation and translation
     # Reference values
     r, _, _ = distances_and_pair_types(xyzs, types, 2, cutoff=2.6)
     # Construct random rotation matrix
@@ -158,3 +163,44 @@ def test_dataset_from_json(resource_path_root, floatx):
 
     assert tuple(output["forces"].bounding_shape()) == (4, 38, 3)
     assert output["forces"].dtype == floatx
+
+
+@pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
+def test_descriptor_dataset_from_json(resource_path_root, floatx):
+    try:
+        from mlpot.descriptors import DescriptorSet
+    except ImportError:
+        pytest.skip("Unable to import from mlpot")
+
+    etas = [0.001, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64]
+    cutoffs = {
+        ("Ni", "Ni"): 5.57,
+        ("Ni", "Pt"): 5.887567,
+        ("Pt", "Ni"): 5.887567,
+        ("Pt", "Pt"): 6.2050886,
+    }
+
+    with DescriptorSet(["Ni", "Pt"]) as descriptor_set:
+        for eta in etas:
+            for ti, tj in product(descriptor_set.atomtypes, repeat=2):
+                descriptor_set.add_two_body_descriptor(
+                    ti,
+                    tj,
+                    "BehlerG1",
+                    [eta],
+                    cuttype="polynomial",
+                    cutoff=cutoffs[(ti, tj)],
+                )
+
+        dataset = descriptor_dataset_from_json(
+            resource_path_root / "test_data.json",
+            descriptor_set,
+            batch_size=4,
+            floatx=floatx,
+        )
+        input, output = next(iter(dataset))
+
+    assert tuple(input["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert input["types"].dtype == tf.int32
+
+    # TODO: Finish this properly
