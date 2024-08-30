@@ -1,3 +1,5 @@
+import json
+import numpy as np
 import tensorflow as tf
 from mlpot.descriptors import DescriptorSet
 from mleam.data_prep import descriptor_dataset_from_json
@@ -16,11 +18,15 @@ def train_model(model, run_name, descriptor_set, hyperparams, random_seed=0, epo
         "../data/train_data.json",
         descriptor_set,
         batch_size=batch_size,
+        Gs_max=hypers["Gs_max"],
+        Gs_min=hypers["Gs_min"],
     )
 
     dataset_val = descriptor_dataset_from_json(
         "../data/val_data.json",
         descriptor_set,
+        Gs_max=hypers["Gs_max"],
+        Gs_min=hypers["Gs_min"],
     )
 
     model = model(
@@ -93,11 +99,18 @@ if __name__ == "__main__":
         ("Pt", "Pt"): 6.2050886,
     }
 
+    with open("descriptor_norms.json", "r") as fin:
+        norms = json.load(fin)
+    Gs_min = {key: np.array(val) for key, val in norms["Gs_min"].items()}
+    Gs_max = {key: np.array(val) for key, val in norms["Gs_max"].items()}
+
     run_name = "BP/example/"
     hypers = {
         "offset_trainable": False,
         "layers": {"Ni": [15, 15], "Pt": [15, 15]},
         "regularization": 1e-6,
+        "Gs_min": Gs_min,
+        "Gs_max": Gs_max,
     }
 
     with DescriptorSet(["Ni", "Pt"]) as descriptor_set:
@@ -106,10 +119,10 @@ if __name__ == "__main__":
                 descriptor_set.add_two_body_descriptor(
                     ti,
                     tj,
-                    "BehlerG1",
-                    [eta],
+                    "BehlerG2",
+                    [eta, 0.0],
                     cuttype="polynomial",
                     cutoff=cutoffs[(ti, tj)],
                 )
 
-        train_model(BehlerParrinello, run_name, descriptor_set, hypers, epochs=20)
+        train_model(BehlerParrinello, run_name, descriptor_set, hypers, epochs=100)
