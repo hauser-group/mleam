@@ -1,6 +1,6 @@
+from simple_model_training import train_model
 import numpy as np
 from mleam.models import Ackland
-from simple_model_training import train_model
 
 
 if __name__ == "__main__":
