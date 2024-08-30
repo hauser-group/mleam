@@ -519,6 +519,50 @@ class SqrtEmbedding(tf.keras.layers.Layer):
         return -tf.math.sqrt(rho)
 
 
+class JohnsonEmbedding(tf.keras.layers.Layer):
+    def __init__(
+        self,
+        atom_type: str,
+        F0: float = 0.5,
+        eta: float = 0.5,
+        F1: float = 0.5,
+        zeta: float = 0.5,
+        power_law_trainable: bool = True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.F0 = self.add_weight(
+            shape=(1), name=f"F0_{atom_type}", initializer=tf.constant_initializer(F0)
+        )
+        self.eta = self.add_weight(
+            shape=(1), name=f"eta_{atom_type}", initializer=tf.constant_initializer(eta)
+        )
+        self.F1 = self.add_weight(
+            shape=(1),
+            name=f"F1_{atom_type}",
+            initializer=tf.constant_initializer(F1),
+            trainable=power_law_trainable,
+        )
+        self.zeta = self.add_weight(
+            shape=(1),
+            name=f"zeta_{atom_type}",
+            initializer=tf.constant_initializer(zeta),
+            trainable=power_law_trainable,
+        )
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, rho):
+        # rho.shape = (None, 1)
+        return (
+            -self.F0 * (1 - self.eta * tf.math.log(rho)) * rho**self.eta
+            - self.F1 * rho**self.zeta
+        )
+
+
 class ExtendedEmbedding(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

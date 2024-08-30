@@ -20,6 +20,7 @@ from mleam.layers import (
     NNRho,
     NNRhoExp,
     SqrtEmbedding,
+    JohnsonEmbedding,
     ExtendedEmbedding,
     ExtendedEmbeddingV2,
     ExtendedEmbeddingV3,
@@ -631,6 +632,35 @@ class SuttonChen(EAMPotential):
 
     def get_embedding(self, atom_type):
         return SqrtEmbedding(name=f"{atom_type}-Embedding")
+
+
+class Johnson(EAMPotential):
+    def get_pair_potential(self, pair_type: str):
+        return BornMayer(
+            pair_type,
+            A=self.params.get(("A", pair_type), 0.2),
+            p=self.params.get(("p", pair_type), 9.2),
+            name="Phi-%s" % pair_type,
+        )
+
+    def get_rho(self, pair_type: str):
+        return RhoExp(
+            pair_type,
+            xi=self.params.get(("xi", pair_type), 1.6),
+            q=self.params.get(("q", pair_type), 3.5),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type: str):
+        return JohnsonEmbedding(
+            atom_type,
+            F0=self.params.get(("F0", atom_type), 0.5),
+            eta=self.params.get(("eta", atom_type), 0.5),
+            F1=self.params.get(("F1", atom_type), 0.5),
+            zeta=self.params.get(("zeta", atom_type), 0.5),
+            power_law_trainable=self.hyperparams.get("power_law_trainable", True),
+            name=f"{atom_type}-Embedding",
+        )
 
 
 class Ackland(EAMPotential):
