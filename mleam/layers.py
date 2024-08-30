@@ -167,6 +167,28 @@ class NormalizedPairInteraction(PairInteraction):
         ) * self.cutoff_function(r)
 
 
+class CubicSpline(tf.keras.layers.Layer):
+    """Base class that only defines the call functionality"""
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        delta_r = self.nodes[tf.newaxis, :] - r
+        return tf.reduce_sum(
+            tf.where(
+                delta_r > 0.0,
+                self.coefficients[tf.newaxis, :] * delta_r**3,
+                tf.zeros_like(delta_r),
+            ),
+            axis=-1,
+            keepdims=True,
+        )
+
+
 class PairPhi(tf.keras.layers.Layer):
     input_norm = InputNormType.NONE
 
@@ -270,6 +292,23 @@ class FinnisSinclairPhi(PairPhi):
         )
 
 
+class CubicSplinePhi(PairPhi, CubicSpline):
+    def __init__(self, pair_type, r_k, a_k, **kwargs):
+        super().__init__(**kwargs)
+        assert len(r_k) == len(a_k)
+        self.nodes = self.add_weight(
+            shape=(len(r_k)),
+            name=f"r_k_{pair_type}",
+            initializer=tf.constant_initializer(r_k),
+            trainable=False,
+        )
+        self.coefficients = self.add_weight(
+            shape=(len(a_k)),
+            name=f"a_k_{pair_type}",
+            initializer=tf.constant_initializer(a_k),
+        )
+
+
 class RhoExp(PairRhoScaledInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
@@ -354,6 +393,23 @@ class FinnisSinclairRho(PairRho):
             r <= self.d,
             self.A * ((r - self.d) ** 2 + self.beta * (r - self.d) ** 3 / self.d),
             tf.zeros_like(r),
+        )
+
+
+class CubicSplineRho(PairRho, CubicSpline):
+    def __init__(self, pair_type, R_k, A_k, **kwargs):
+        super().__init__(**kwargs)
+        assert len(R_k) == len(A_k)
+        self.nodes = self.add_weight(
+            shape=(len(R_k)),
+            name=f"R_k_{pair_type}",
+            initializer=tf.constant_initializer(R_k),
+            trainable=False,
+        )
+        self.coefficients = self.add_weight(
+            shape=(len(A_k)),
+            name=f"A_k_{pair_type}",
+            initializer=tf.constant_initializer(A_k),
         )
 
 

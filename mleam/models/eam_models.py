@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from tensorflow.python.ops.ragged.ragged_where_op import where as ragged_where
 from itertools import combinations_with_replacement
 from mleam.layers import (
@@ -13,6 +14,8 @@ from mleam.layers import (
     SuttonChenRho,
     FinnisSinclairPhi,
     FinnisSinclairRho,
+    CubicSplinePhi,
+    CubicSplineRho,
     RhoTwoExp,
     NNRho,
     NNRhoExp,
@@ -43,6 +46,7 @@ class EAMPotential(tf.keras.Model):
         cutoff=None,
         method="partition_stitch",
         force_method="old",
+        **kwargs,
     ):
         """
         atom_types: list of str used to construct all the model layers. Note
@@ -68,7 +72,7 @@ class EAMPotential(tf.keras.Model):
                     - 'old' default
                     - 'new'
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.atom_types = atom_types
         self.params = params
@@ -629,6 +633,29 @@ class SuttonChen(EAMPotential):
         return SqrtEmbedding(name=f"{atom_type}-Embedding")
 
 
+class Ackland(EAMPotential):
+    def get_pair_potential(self, pair_type: str):
+        r_k = self.params.get(("r_k", pair_type), np.linspace(2, 5, 6))
+        return CubicSplinePhi(
+            pair_type,
+            r_k=r_k,
+            a_k=self.params.get(("a_k", pair_type), np.zeros_like(r_k)),
+            name="Phi-%s" % pair_type,
+        )
+
+    def get_rho(self, pair_type: str):
+        R_k = self.params.get(("R_k", pair_type), np.array([2.0, 3.0]))
+        return CubicSplineRho(
+            pair_type,
+            R_k=R_k,
+            A_k=self.params.get(("A_k", pair_type), np.zeros_like(R_k)),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type: str):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
+
+
 class CommonEmbeddingSMATB(SMATB):
     def build_functions(self):
         pair_potentials = {}
@@ -694,11 +721,11 @@ class CommonExtendedEmbeddingV4Model(CommonEmbeddingSMATB):
 
 
 class NNEmbeddingModel(SMATB):
-    def get_embedding(self, type):
+    def get_embedding(self, atom_type):
         return NNSqrtEmbedding(
-            layers=self.params.get(("F_layers", type), [20, 20]),
+            layers=self.params.get(("F_layers", atom_type), [20, 20]),
             regularization=self.hyperparams.get("regularization", 1e-5),
-            name="%s-Embedding" % type,
+            name="%s-Embedding" % atom_type,
         )
 
 
