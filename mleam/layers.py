@@ -309,6 +309,53 @@ class CubicSplinePhi(PairPhi, CubicSpline):
         )
 
 
+class MorsePhi(PairPhiScaledInput):
+    def __init__(self, pair_type: str, D: float = 1, a: float = 1, **kwargs):
+        super().__init__(**kwargs)
+        self.D = self.add_weight(
+            shape=(1), name=f"D_{pair_type}", initializer=tf.constant_initializer(D)
+        )
+        self.a = self.add_weight(
+            shape=(1), name=f"a_{pair_type}", initializer=tf.constant_initializer(a)
+        )
+
+    def call(self, r_normalized):
+        # r_normalized.shape = (None, 1)
+        return self.D * (
+            tf.exp(-2 * self.a * r_normalized) - 2 * tf.exp(-self.a * r_normalized)
+        )
+
+
+class PhiDoubleExp(PairPhiScaledInput):
+    def __init__(self, pair_type, A_1=1.6, p_1=3.5, A_2=0.8, p_2=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.A_1 = self.add_weight(
+            shape=(1), name=f"A_1_{pair_type}", initializer=tf.constant_initializer(A_1)
+        )
+        self.p_1 = self.add_weight(
+            shape=(1), name=f"p_1_{pair_type}", initializer=tf.constant_initializer(p_1)
+        )
+        self.A_2 = self.add_weight(
+            shape=(1), name=f"A_2_{pair_type}", initializer=tf.constant_initializer(A_2)
+        )
+        self.p_2 = self.add_weight(
+            shape=(1), name=f"p_2_{pair_type}", initializer=tf.constant_initializer(p_2)
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r_normalized):
+        # r_normalized.shape = (None, 1)
+        return self.A * tf.exp(-self.p_1 * r_normalized) + self.A_2 * tf.exp(
+            -self.p_2 * r_normalized
+        )
+
+
 class RhoExp(PairRhoScaledInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
@@ -413,7 +460,7 @@ class CubicSplineRho(PairRho, CubicSpline):
         )
 
 
-class RhoTwoExp(PairRhoScaledInput):
+class RhoDoubleExp(PairRhoScaledInput):
     def __init__(self, pair_type, xi_1=1.6, q_1=3.5, xi_2=0.8, q_2=1.0, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -445,6 +492,24 @@ class RhoTwoExp(PairRhoScaledInput):
         return self.xi_1**2 * tf.exp(
             -2 * self.q_1 * r_normalized
         ) + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
+
+
+def VoterRho(PairRho):
+    def __init__(self, pair_type: str, xi: float = 1.0, beta: float = 1.0, **kwargs):
+        super().__init__(**kwargs)
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r.shape = (None, 1)
+        return (
+            self.xi**2
+            * r**6
+            * (tf.exp(-self.beta * r) + 2**9 * tf.exp(-2 * self.beta * r))
+        )
 
 
 class NNRho(PairRhoScaledInput):

@@ -16,7 +16,8 @@ from mleam.layers import (
     FinnisSinclairRho,
     CubicSplinePhi,
     CubicSplineRho,
-    RhoTwoExp,
+    PhiDoubleExp,
+    RhoDoubleExp,
     NNRho,
     NNRhoExp,
     SqrtEmbedding,
@@ -686,6 +687,31 @@ class Ackland(EAMPotential):
         return SqrtEmbedding(name=f"{atom_type}-Embedding")
 
 
+class DoubleExp(EAMPotential):
+    def get_pair_potential(self, pair_type):
+        return PhiDoubleExp(
+            pair_type,
+            A_1=self.params.get(("A_1", pair_type), 0.2),
+            p_1=self.params.get(("p_1", pair_type), 9.2),
+            A_2=self.params.get(("A_2", pair_type), 0.05),
+            p_2=self.params.get(("p_2", pair_type), 20.0),
+            name="Phi-%s" % pair_type,
+        )
+
+    def get_rho(self, pair_type):
+        return RhoDoubleExp(
+            pair_type,
+            xi_1=self.params.get(("xi_1", pair_type), 1.6),
+            q_1=self.params.get(("q_1", pair_type), 3.5),
+            xi_2=self.params.get(("xi_2", pair_type), 0.1),
+            q_2=self.params.get(("q_2", pair_type), 7.0),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type: str):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
+
+
 class CommonEmbeddingSMATB(SMATB):
     def build_functions(self):
         pair_potentials = {}
@@ -772,7 +798,7 @@ class CommonNNEmbeddingModel(CommonEmbeddingSMATB):
 
 class RhoTwoExpModel(SMATB):
     def get_rho(self, pair_type):
-        return RhoTwoExp(
+        return RhoDoubleExp(
             pair_type,
             xi_1=self.params.get(("xi_1", pair_type), 1.6),
             q_1=self.params.get(("q_1", pair_type), 3.5),
@@ -834,7 +860,7 @@ class CommonNNEmbeddingNNRhoModel(CommonNNEmbeddingModel):
 
 class CommonExtendedEmbeddingV4RhoTwoExpModel(CommonExtendedEmbeddingV4Model):
     def get_rho(self, pair_type):
-        return RhoTwoExp(
+        return RhoDoubleExp(
             pair_type,
             xi_1=self.params.get(("xi_1", pair_type), 1.6),
             q_1=self.params.get(("q_1", pair_type), 3.5),
