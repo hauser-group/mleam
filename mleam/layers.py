@@ -351,7 +351,7 @@ class PhiDoubleExp(PairPhiScaledInput):
     )
     def call(self, r_normalized):
         # r_normalized.shape = (None, 1)
-        return self.A * tf.exp(-self.p_1 * r_normalized) + self.A_2 * tf.exp(
+        return self.A_1 * tf.exp(-self.p_1 * r_normalized) + self.A_2 * tf.exp(
             -self.p_2 * r_normalized
         )
 
