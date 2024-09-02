@@ -7,7 +7,7 @@ from mleam.models import (
     SuttonChen,
     FinnisSinclair,
     Johnson,
-    Ackland,
+    DoubleExp,
     ExtendedEmbeddingModel,
     ExtendedEmbeddingV2Model,
     ExtendedEmbeddingV3Model,
@@ -27,6 +27,7 @@ from mleam.models import (
     CommonExtendedEmbeddingV4RhoTwoExpModel,
 )
 from utils import derive_scalar_wrt_array
+import numdifftools as nd
 
 test_models_decorator = pytest.mark.parametrize(
     "model_class, params, hyperparams",
@@ -36,7 +37,7 @@ test_models_decorator = pytest.mark.parametrize(
         (SuttonChen, {}, {}),
         (FinnisSinclair, {}, {}),
         (Johnson, {}, {}),
-        (Ackland, {}, {}),
+        (DoubleExp, {}, {}),
     ],
 )
 
@@ -78,6 +79,43 @@ def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
         ref_forces.to_tensor().numpy(),
         atol=1e-6,
     )
+
+    tf.keras.backend.clear_session()
+
+
+@test_models_decorator
+def test_model_forces_numerically(model_class, params, hyperparams):
+    tf.keras.backend.clear_session()
+    # Number of atoms
+    N = 4
+    xyzs = tf.RaggedTensor.from_tensor(
+        [
+            [
+                [0.0, 0.0, 0.0],
+                [-2.17, 0.91, -0.75],
+                [-0.62, -0.99, -0.94],
+                [1.22, -0.04, 0.49],
+            ]
+        ],
+        lengths=[N],
+    )
+    types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+
+    model = model_class(atom_types=["Ni", "Pt"], build_forces=True)
+    forces = model({"positions": xyzs, "types": types})["forces"]
+
+    def fun(x):
+        # numdifftools flattens the vector x so it needs to be reshaped here
+        xyzs = tf.RaggedTensor.from_tensor(x.reshape(1, N, 3), lengths=[N])
+        # numdifftools expects a scalar function:
+        return model({"positions": xyzs, "types": types})["energy"][0, 0]
+
+    # Force is the negative gradient
+    num_forces = -nd.Gradient(fun)(xyzs.to_tensor().numpy()).reshape(1, N, 3)
+
+    np.testing.assert_allclose(forces.to_tensor().numpy(), num_forces, atol=1e-2)
+
+    tf.keras.backend.clear_session()
 
 
 class ModelTest:
