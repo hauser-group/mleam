@@ -1,4 +1,5 @@
 import pytest
+import json
 import numpy as np
 import tensorflow as tf
 from mleam.utils import distances_and_pair_types
@@ -113,29 +114,29 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx):
         floatx=floatx,
         cutoff=5.0,
     )
-    input, output = next(iter(dataset))
-    assert tuple(input["types"].bounding_shape().numpy()) == (4, 38, 1)
-    assert input["types"].dtype == tf.int32
+    inputs, outputs = next(iter(dataset))
+    assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert inputs["types"].dtype == tf.int32
 
     # NOTE: because of the cutoff we supplied this is not the "expected" (4, 38, 33, 1)
     # but instead is smaller to optimize the throughput.
-    assert tuple(input["pair_types"].bounding_shape().numpy()) == (4, 38, 33, 1)
-    assert input["pair_types"].dtype == tf.int32
+    assert tuple(inputs["pair_types"].bounding_shape().numpy()) == (4, 38, 33, 1)
+    assert inputs["pair_types"].dtype == tf.int32
 
-    assert tuple(input["distances"].bounding_shape().numpy()) == (4, 38, 33, 1)
-    assert input["distances"].dtype == floatx
+    assert tuple(inputs["distances"].bounding_shape().numpy()) == (4, 38, 33, 1)
+    assert inputs["distances"].dtype == floatx
 
-    assert tuple(input["dr_dx"].bounding_shape().numpy()) == (4, 38, 33, 38, 3)
-    assert input["dr_dx"].dtype == floatx
+    assert tuple(inputs["dr_dx"].bounding_shape().numpy()) == (4, 38, 33, 38, 3)
+    assert inputs["dr_dx"].dtype == floatx
 
-    assert output["energy"].shape == (4, 1)
-    assert output["energy"].dtype == floatx
+    assert outputs["energy"].shape == (4, 1)
+    assert outputs["energy"].dtype == floatx
 
-    assert output["energy_per_atom"].shape == (4, 1)
-    assert output["energy_per_atom"].dtype == floatx
+    assert outputs["energy_per_atom"].shape == (4, 1)
+    assert outputs["energy_per_atom"].dtype == floatx
 
-    assert tuple(output["forces"].bounding_shape()) == (4, 38, 3)
-    assert output["forces"].dtype == floatx
+    assert tuple(outputs["forces"].bounding_shape()) == (4, 38, 3)
+    assert outputs["forces"].dtype == floatx
 
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
@@ -147,22 +148,22 @@ def test_dataset_from_json(resource_path_root, floatx):
         batch_size=4,
         floatx=floatx,
     )
-    input, output = next(iter(dataset))
+    inputs, outputs = next(iter(dataset))
 
-    assert tuple(input["types"].bounding_shape().numpy()) == (4, 38, 1)
-    assert input["types"].dtype == tf.int32
+    assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert inputs["types"].dtype == tf.int32
 
-    assert tuple(input["positions"].bounding_shape().numpy()) == (4, 38, 3)
-    assert input["positions"].dtype == floatx
+    assert tuple(inputs["positions"].bounding_shape().numpy()) == (4, 38, 3)
+    assert inputs["positions"].dtype == floatx
 
-    assert output["energy"].shape == (4, 1)
-    assert output["energy"].dtype == floatx
+    assert outputs["energy"].shape == (4, 1)
+    assert outputs["energy"].dtype == floatx
 
-    assert output["energy_per_atom"].shape == (4, 1)
-    assert output["energy_per_atom"].dtype == floatx
+    assert outputs["energy_per_atom"].shape == (4, 1)
+    assert outputs["energy_per_atom"].dtype == floatx
 
-    assert tuple(output["forces"].bounding_shape()) == (4, 38, 3)
-    assert output["forces"].dtype == floatx
+    assert tuple(outputs["forces"].bounding_shape()) == (4, 38, 3)
+    assert outputs["forces"].dtype == floatx
 
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
@@ -171,6 +172,11 @@ def test_descriptor_dataset_from_json(resource_path_root, floatx):
         from mlpot.descriptors import DescriptorSet
     except ImportError:
         pytest.skip("Unable to import from mlpot")
+
+    with open(
+        resource_path_root / "behler_parrinello_reference" / "descriptors.json"
+    ) as fin:
+        ref_data = json.load(fin)
 
     etas = [0.001, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64]
     cutoffs = {
@@ -198,9 +204,16 @@ def test_descriptor_dataset_from_json(resource_path_root, floatx):
             batch_size=4,
             floatx=floatx,
         )
-        input, output = next(iter(dataset))
+        inputs, outputs = next(iter(dataset))
 
-    assert tuple(input["types"].bounding_shape().numpy()) == (4, 38, 1)
-    assert input["types"].dtype == tf.int32
+    assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert inputs["types"].dtype == tf.int32
+    assert inputs["types"].to_list() == ref_data["types"]
 
-    # TODO: Finish this properly
+    assert tuple(inputs["Gs"].bounding_shape().numpy()) == (4, 38, 14)
+    assert inputs["Gs"].dtype == floatx
+    np.testing.assert_allclose(inputs["Gs"].to_list(), ref_data["Gs"], atol=1e-6)
+
+    assert tuple(inputs["dGs"].bounding_shape().numpy()) == (4, 38, 14, 38, 3)
+    assert inputs["dGs"].dtype == floatx
+    np.testing.assert_allclose(inputs["dGs"].to_list(), ref_data["dGs"], atol=1e-6)
