@@ -4,6 +4,10 @@ import numpy as np
 import tensorflow as tf
 from mleam.models import (
     SMATB,
+    SuttonChen,
+    FinnisSinclair,
+    Johnson,
+    Ackland,
     ExtendedEmbeddingModel,
     ExtendedEmbeddingV2Model,
     ExtendedEmbeddingV3Model,
@@ -23,6 +27,57 @@ from mleam.models import (
     CommonExtendedEmbeddingV4RhoTwoExpModel,
 )
 from utils import derive_scalar_wrt_array
+
+test_models_decorator = pytest.mark.parametrize(
+    "model_class, params, hyperparams",
+    [
+        (SMATB, {}, {}),
+        (SMATB, {}, {"r0_trainable": True}),
+        (SuttonChen, {}, {}),
+        (FinnisSinclair, {}, {}),
+        (Johnson, {}, {}),
+        (Ackland, {}, {}),
+    ],
+)
+
+
+@test_models_decorator
+def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
+    """Only testing save_weights as standard save does not seem to
+    work with ragged output tensors."""
+    tf.keras.backend.clear_session()
+    # Random input
+    xyzs = tf.RaggedTensor.from_tensor(tf.random.normal((1, 4, 3)), lengths=[4])
+    types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+
+    atom_types = ["Ni", "Pt"]
+    model = model_class(atom_types, params, hyperparams, build_forces=True)
+    ref_prediction = model({"positions": xyzs, "types": types})
+    ref_e, ref_forces = (
+        ref_prediction["energy_per_atom"],
+        ref_prediction["forces"],
+    )
+
+    model.save_weights(tmpdir / "tmp_model.h5")
+
+    # Build fresh model
+    model = model_class(atom_types, params, hyperparams, build_forces=True)
+    # Model needs to be called once before loading in order to
+    # determine all weight sizes...
+    model({"positions": xyzs, "types": types})
+    model.load_weights(tmpdir / "tmp_model.h5")
+    new_prediction = model({"positions": xyzs, "types": types})
+    new_e, new_forces = (
+        new_prediction["energy_per_atom"],
+        new_prediction["forces"],
+    )
+
+    np.testing.assert_allclose(new_e.numpy(), ref_e.numpy(), atol=1e-6)
+    np.testing.assert_allclose(
+        new_forces.to_tensor().numpy(),
+        ref_forces.to_tensor().numpy(),
+        atol=1e-6,
+    )
 
 
 class ModelTest:
