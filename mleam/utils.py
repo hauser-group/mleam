@@ -355,3 +355,67 @@ def pretrain_rho(
         if i % 500 == 0:
             print(i, loss.numpy())
     return False
+
+
+def get_2D_pareto_indices(points: np.ndarray) -> np.ndarray:
+    """Calculate the indices of the points that make up the 2D pareto front.
+
+    Parameters
+    ----------
+    points : array_like, shape (N,2)
+        two dimensional array of all observations
+
+    Returns
+    -------
+    pareto_indices : ndarray of int, shape (M,)
+        list of indices that define the pareto front
+    """
+
+    # Follows https://en.wikipedia.org/wiki/Maxima_of_a_point_set#Two_dimensions
+    # Modified for minimization of both dimensions, changed are HIGHLIGHTED by
+    # upper case text.
+    # 1. Sort the points in one of the coordinate dimensions
+    indices = np.argsort(points[:, 0])
+    pareto_indices = []
+    y_min = np.inf
+    # 2. For each point, in INCREASING x order, test whether its y-coordinate
+    #    is SMALLER than the MINIMUM y-coordinate of any previous point
+    for ind in indices:
+        if points[ind, 1] < y_min:
+            # If it is, save the points as one of the maximal points, and save
+            # its y-coordinate as the SMALLEST seen so far
+            pareto_indices.append(ind)
+            y_min = points[ind, 1]
+    return np.array(pareto_indices)
+
+
+def plot_pareto(ax, pareto_points, quadrant=0):
+    xlimits = ax.get_xlim()
+    ylimits = ax.get_ylim()
+    if quadrant == 0:
+        xlim = xlimits[1]
+        ylim = ylimits[1]
+    elif quadrant == 3:
+        xlim = xlimits[1]
+        ylim = ylimits[0]
+    else:
+        raise NotImplementedError("Only quadrants 0 and 3 are supported")
+    ax.scatter(pareto_points[:, 0], pareto_points[:, 1], color="C3", s=20, zorder=2)
+    pareto_front = np.zeros([2 * len(pareto_points) + 1, 2])
+    # Odd points are the pareto points themselves
+    pareto_front[1::2] = pareto_points
+    # First extends vertically to ylim
+    pareto_front[0] = pareto_points[0, 0], ylim
+
+    for i in range(len(pareto_points) - 1):
+        pareto_front[2 * (i + 1)] = pareto_points[i + 1, 0], pareto_points[i, 1]
+
+    # Last extends horizontally to xlim
+    pareto_front[-1] = (
+        xlim,
+        pareto_points[-1, 1],
+    )
+
+    ax.plot(pareto_front[:, 0], pareto_front[:, 1], color="C3")
+    ax.set_xlim(*xlimits)
+    ax.set_ylim(*ylimits)
