@@ -694,7 +694,7 @@ class DoubleExp(EAMPotential):
             A_1=self.params.get(("A_1", pair_type), 0.2),
             p_1=self.params.get(("p_1", pair_type), 9.2),
             A_2=self.params.get(("A_2", pair_type), 0.05),
-            p_2=self.params.get(("p_2", pair_type), 20.0),
+            p_2=self.params.get(("p_2", pair_type), 0.1),
             name="Phi-%s" % pair_type,
         )
 
@@ -704,7 +704,7 @@ class DoubleExp(EAMPotential):
             xi_1=self.params.get(("xi_1", pair_type), 1.6),
             q_1=self.params.get(("q_1", pair_type), 3.5),
             xi_2=self.params.get(("xi_2", pair_type), 0.1),
-            q_2=self.params.get(("q_2", pair_type), 7.0),
+            q_2=self.params.get(("q_2", pair_type), 0.1),
             name="Rho-%s" % pair_type,
         )
 
