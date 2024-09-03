@@ -12,6 +12,8 @@ from mleam.layers import (
     ExpRho,
     SuttonChenPhi,
     SuttonChenRho,
+    DoubleSuttonChenPhi,
+    DoubleSuttonChenRho,
     FinnisSinclairPhi,
     FinnisSinclairRho,
     CubicSplinePhi,
@@ -628,6 +630,31 @@ class SuttonChen(EAMPotential):
             pair_type,
             a=self.params.get(("a", pair_type), 3.0),
             m=self.params.get(("m", pair_type), 6),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
+
+
+class DoubleSuttonChen(EAMPotential):
+    def get_pair_potential(self, pair_type):
+        return DoubleSuttonChenPhi(
+            pair_type,
+            c_1=self.params.get(("c_1", pair_type), 3.0),
+            n_1=self.params.get(("n_1", pair_type), 6),
+            c_2=self.params.get(("c_2", pair_type), 3.0),
+            n_2=self.params.get(("n_2", pair_type), 8),
+            name="Phi-%s" % pair_type,
+        )
+
+    def get_rho(self, pair_type):
+        return DoubleSuttonChenRho(
+            pair_type,
+            a_1=self.params.get(("a_1", pair_type), 3.0),
+            m_1=self.params.get(("m_1", pair_type), 6),
+            a_2=self.params.get(("a_2", pair_type), 3.0),
+            m_2=self.params.get(("m_2", pair_type), 8),
             name="Rho-%s" % pair_type,
         )
 

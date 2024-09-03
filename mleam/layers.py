@@ -252,6 +252,48 @@ class SuttonChenPhi(PairPhi):
         return (self.c / r) ** self.n
 
 
+class DoubleSuttonChenPhi(PairPhi):
+    def __init__(
+        self,
+        pair_type: str,
+        c_1: float = 3.0,
+        n_1: int = 6,
+        c_2: float = 3.0,
+        n_2: int = 8,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.c_1 = self.add_weight(
+            shape=(1), name=f"c_1_{pair_type}", initializer=tf.constant_initializer(c_1)
+        )
+        self.c_2 = self.add_weight(
+            shape=(1), name=f"c_2_{pair_type}", initializer=tf.constant_initializer(c_2)
+        )
+        self.n_1 = self.add_weight(
+            shape=(1),
+            name=f"n_1_{pair_type}",
+            initializer=tf.constant_initializer(n_1),
+            trainable=False,
+        )
+        self.n_2 = self.add_weight(
+            shape=(1),
+            name=f"n_2_{pair_type}",
+            initializer=tf.constant_initializer(n_2),
+            trainable=False,
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        return (self.c_1 / r) ** self.n_1 + (self.c_2 / r) ** self.n_2
+
+
 class FinnisSinclairPhi(PairPhi):
     def __init__(
         self,
@@ -401,6 +443,48 @@ class SuttonChenRho(PairRho):
     def call(self, r):
         # r = (None, 1)
         return (self.a / r) ** self.m
+
+
+class DoubleSuttonChenRho(PairRho):
+    def __init__(
+        self,
+        pair_type: str,
+        a_1: float = 3.0,
+        m_1: int = 6,
+        a_2: float = 3.0,
+        m_2: int = 8,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.a_1 = self.add_weight(
+            shape=(1), name=f"a_1_{pair_type}", initializer=tf.constant_initializer(a_1)
+        )
+        self.a_2 = self.add_weight(
+            shape=(1), name=f"a_2_{pair_type}", initializer=tf.constant_initializer(a_2)
+        )
+        self.m_1 = self.add_weight(
+            shape=(1),
+            name=f"m_1_{pair_type}",
+            initializer=tf.constant_initializer(m_1),
+            trainable=False,
+        )
+        self.m_2 = self.add_weight(
+            shape=(1),
+            name=f"m_2_{pair_type}",
+            initializer=tf.constant_initializer(m_2),
+            trainable=False,
+        )
+        self._supports_ragged_inputs = True
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, r):
+        # r = (None, 1)
+        return (self.a_1 / r) ** self.m_1 + (self.a_2 / r) ** self.m_2
 
 
 class FinnisSinclairRho(PairRho):
