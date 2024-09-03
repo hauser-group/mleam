@@ -3,6 +3,7 @@ import json
 import numpy as np
 import tensorflow as tf
 from mleam.models import SMATB
+from mleam.data_prep import fcc_bulk_curve
 
 
 @pytest.fixture
@@ -98,16 +99,14 @@ def test_versus_ferrando_code(params, resource_path_root):
         ragged_rank=1,
     )
     positions = tf.ragged.constant(data["positions"], ragged_rank=1)
-    Ns = tf.cast(types.row_lengths(), dtype=tf.float32)
 
     model = SMATB(["Ni", "Pt"], params=params, build_forces=True)
 
-    e_model = model({"types": types, "positions": positions})["energy_per_atom"]
-    e_model = tf.squeeze(e_model) * Ns
+    e_model = model({"types": types, "positions": positions})["energy"]
 
     # High tolerance since we know that the Ferrando code uses a different
     # cutoff style
-    np.testing.assert_allclose(e_model.numpy(), e_ref, rtol=1e-2)
+    np.testing.assert_allclose(e_model.numpy().flatten(), e_ref, rtol=1e-2)
 
 
 def test_body_methods(tmpdir, atol=1e-6):
@@ -227,3 +226,32 @@ def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
     compare_tabs(6 + 30000 + 1 + 30000 + 10000)
     # phi PtPt:
     compare_tabs(6 + 30000 + 1 + 30000 + 20000)
+
+
+def test_load_smatb_model(resource_path_root):
+    type_dict = {"Ni": 0, "Pt": 1}
+    a_vec = np.linspace(1.8 * np.sqrt(2), 3.5 * np.sqrt(2), 50)
+    Ni_bulk_curve = fcc_bulk_curve(type_dict, "Ni", a_vec)
+    Pt_bulk_curve = fcc_bulk_curve(type_dict, "Pt", a_vec)
+
+    model = SMATB(["Ni", "Pt"], params={}, build_forces=True, preprocessed_input=True)
+    # Call once to build all layers
+    model.predict(Ni_bulk_curve)
+    model.load_weights(resource_path_root / "models" / "smatb_reference.h5")
+
+    e_Ni = model.predict(Ni_bulk_curve)["energy"]
+    e_Pt = model.predict(Pt_bulk_curve)["energy"]
+
+    with open(resource_path_root / "data" / "bulk_curves.json", "r") as fin:
+        e_ref = json.load(fin)["SMATB"]
+
+    np.testing.assert_allclose(
+        e_Ni.flatten(),
+        e_ref["Ni"],
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        e_Pt.flatten(),
+        e_ref["Pt"],
+        atol=1e-5,
+    )
