@@ -9,15 +9,15 @@ from mleam.layers import (
     OffsetLayer,
     InputNormalization,
     BornMayer,
-    RhoExp,
+    ExpRho,
     SuttonChenPhi,
     SuttonChenRho,
     FinnisSinclairPhi,
     FinnisSinclairRho,
     CubicSplinePhi,
     CubicSplineRho,
-    PhiDoubleExp,
-    RhoDoubleExp,
+    DoubleExpPhi,
+    DoubleExpRho,
     NNRho,
     NNRhoExp,
     SqrtEmbedding,
@@ -578,7 +578,7 @@ class SMATB(EAMPotential):
         )
 
     def get_rho(self, pair_type):
-        return RhoExp(
+        return ExpRho(
             pair_type,
             xi=self.params.get(("xi", pair_type), 1.6),
             q=self.params.get(("q", pair_type), 3.5),
@@ -645,7 +645,7 @@ class Johnson(EAMPotential):
         )
 
     def get_rho(self, pair_type: str):
-        return RhoExp(
+        return ExpRho(
             pair_type,
             xi=self.params.get(("xi", pair_type), 1.6),
             q=self.params.get(("q", pair_type), 3.5),
@@ -689,7 +689,7 @@ class Ackland(EAMPotential):
 
 class DoubleExp(EAMPotential):
     def get_pair_potential(self, pair_type):
-        return PhiDoubleExp(
+        return DoubleExpPhi(
             pair_type,
             A_1=self.params.get(("A_1", pair_type), 0.2),
             p_1=self.params.get(("p_1", pair_type), 9.2),
@@ -699,7 +699,7 @@ class DoubleExp(EAMPotential):
         )
 
     def get_rho(self, pair_type):
-        return RhoDoubleExp(
+        return DoubleExpRho(
             pair_type,
             xi_1=self.params.get(("xi_1", pair_type), 1.6),
             q_1=self.params.get(("q_1", pair_type), 3.5),
@@ -798,7 +798,7 @@ class CommonNNEmbeddingModel(CommonEmbeddingSMATB):
 
 class RhoTwoExpModel(SMATB):
     def get_rho(self, pair_type):
-        return RhoDoubleExp(
+        return DoubleExpRho(
             pair_type,
             xi_1=self.params.get(("xi_1", pair_type), 1.6),
             q_1=self.params.get(("q_1", pair_type), 3.5),
@@ -860,7 +860,7 @@ class CommonNNEmbeddingNNRhoModel(CommonNNEmbeddingModel):
 
 class CommonExtendedEmbeddingV4RhoTwoExpModel(CommonExtendedEmbeddingV4Model):
     def get_rho(self, pair_type):
-        return RhoDoubleExp(
+        return DoubleExpRho(
             pair_type,
             xi_1=self.params.get(("xi_1", pair_type), 1.6),
             q_1=self.params.get(("q_1", pair_type), 3.5),

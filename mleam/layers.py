@@ -326,7 +326,7 @@ class MorsePhi(PairPhiScaledInput):
         )
 
 
-class PhiDoubleExp(PairPhiScaledInput):
+class DoubleExpPhi(PairPhiScaledInput):
     def __init__(self, pair_type, A_1=1.6, p_1=3.5, A_2=0.8, p_2=1.0, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -356,7 +356,7 @@ class PhiDoubleExp(PairPhiScaledInput):
         )
 
 
-class RhoExp(PairRhoScaledInput):
+class ExpRho(PairRhoScaledInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -460,7 +460,7 @@ class CubicSplineRho(PairRho, CubicSpline):
         )
 
 
-class RhoDoubleExp(PairRhoScaledInput):
+class DoubleExpRho(PairRhoScaledInput):
     def __init__(self, pair_type, xi_1=1.6, q_1=3.5, xi_2=0.8, q_2=1.0, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
