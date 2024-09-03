@@ -229,12 +229,14 @@ def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
 
 
 def test_load_smatb_model(resource_path_root):
+    tf.keras.backend.clear_session()
+
     type_dict = {"Ni": 0, "Pt": 1}
     a_vec = np.linspace(1.8 * np.sqrt(2), 3.5 * np.sqrt(2), 50)
     Ni_bulk_curve = fcc_bulk_curve(type_dict, "Ni", a_vec)
     Pt_bulk_curve = fcc_bulk_curve(type_dict, "Pt", a_vec)
 
-    model = SMATB(["Ni", "Pt"], params={}, build_forces=True, preprocessed_input=True)
+    model = SMATB(["Ni", "Pt"], params={}, build_forces=False, preprocessed_input=True)
     # Call once to build all layers
     model.predict(Ni_bulk_curve)
     model.load_weights(resource_path_root / "models" / "smatb_reference.h5")
