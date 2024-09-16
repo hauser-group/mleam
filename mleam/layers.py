@@ -112,7 +112,7 @@ class OffsetLayer(tf.keras.layers.Layer):
         return self.offset * tf.ones_like(inp)
 
 
-class InputNormalization(tf.keras.layers.Layer):
+class InputNormalizationAndShift(tf.keras.layers.Layer):
     """Computes (r/r0 - 1). This is done in a separate layer in order
     to share the r0 weight.
     """
@@ -193,19 +193,19 @@ class PairPhi(tf.keras.layers.Layer):
     input_norm = InputNormType.NONE
 
 
-class PairPhiScaledInput(PairPhi):
-    input_norm = InputNormType.SCALED
+class PairPhiScaledShiftedInput(PairPhi):
+    input_norm = InputNormType.SCALED_SHIFTED
 
 
 class PairRho(tf.keras.layers.Layer):
     input_norm = InputNormType.NONE
 
 
-class PairRhoScaledInput(PairRho):
-    input_norm = InputNormType.SCALED
+class PairRhoScaledShiftedInput(PairRho):
+    input_norm = InputNormType.SCALED_SHIFTED
 
 
-class BornMayer(PairPhiScaledInput):
+class BornMayer(PairPhiScaledShiftedInput):
     def __init__(self, pair_type, A=0.2, p=9.2, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -351,7 +351,7 @@ class CubicSplinePhi(PairPhi, CubicSpline):
         )
 
 
-class MorsePhi(PairPhiScaledInput):
+class MorsePhi(PairPhiScaledShiftedInput):
     def __init__(self, pair_type: str, D: float = 1, a: float = 1, **kwargs):
         super().__init__(**kwargs)
         self.D = self.add_weight(
@@ -368,7 +368,7 @@ class MorsePhi(PairPhiScaledInput):
         )
 
 
-class DoubleExpPhi(PairPhiScaledInput):
+class DoubleExpPhi(PairPhiScaledShiftedInput):
     def __init__(self, pair_type, A_1=1.6, p_1=3.5, A_2=0.8, p_2=1.0, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -398,7 +398,7 @@ class DoubleExpPhi(PairPhiScaledInput):
         )
 
 
-class ExpRho(PairRhoScaledInput):
+class ExpRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -544,7 +544,7 @@ class CubicSplineRho(PairRho, CubicSpline):
         )
 
 
-class DoubleExpRho(PairRhoScaledInput):
+class DoubleExpRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, xi_1=1.6, q_1=3.5, xi_2=0.8, q_2=1.0, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -596,7 +596,7 @@ def VoterRho(PairRho):
         )
 
 
-class NNRho(PairRhoScaledInput):
+class NNRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type
@@ -625,7 +625,7 @@ class NNRho(PairRhoScaledInput):
         return tf.squeeze(nn_results, axis=-1)
 
 
-class NNRhoExp(PairRhoScaledInput):
+class NNRhoExp(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
         super().__init__(**kwargs)
         self.pair_type = pair_type

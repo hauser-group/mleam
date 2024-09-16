@@ -186,6 +186,7 @@ def descriptor_dataset_from_json(
 
 
 def fcc_bulk_curve(type_dict: dict, atom_type: str, a: np.ndarray = np.array([4.0])):
+    # TODO add similar function for descriptors
     # Use type_dict and atom_type to infer the pair_type
     n_types = len(type_dict)
     int_type = type_dict[atom_type]

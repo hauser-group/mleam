@@ -7,7 +7,7 @@ from mleam.layers import (
     NormalizedPairInteraction,
     PolynomialCutoffFunction,
     OffsetLayer,
-    InputNormalization,
+    InputNormalizationAndShift,
     BornMayer,
     ExpRho,
     SuttonChenPhi,
@@ -146,18 +146,18 @@ class EAMPotential(tf.keras.Model):
             rho = self.get_rho(pair_type)
 
             if (
-                pair_potential.input_norm == InputNormType.SCALED
-                or rho.input_norm == InputNormType.SCALED
+                pair_potential.input_norm == InputNormType.SCALED_SHIFTED
+                or rho.input_norm == InputNormType.SCALED_SHIFTED
             ):
                 # A input normalization layer is needed for potential
                 # sharing of the parameter r0 between phi and rho layers
-                scaled_input = InputNormalization(
+                scaled_input = InputNormalizationAndShift(
                     pair_type,
                     r0=self.params.get(("r0", pair_type), 2.7),
                     trainable=self.hyperparams.get("r0_trainable", False),
                 )
 
-            if pair_potential.input_norm == InputNormType.SCALED:
+            if pair_potential.input_norm == InputNormType.SCALED_SHIFTED:
                 pair_potentials[pair_type] = NormalizedPairInteraction(
                     input_normalization=scaled_input,
                     pair_interaction=pair_potential,
@@ -171,7 +171,7 @@ class EAMPotential(tf.keras.Model):
                     name=f"{pair_type}-phi",
                 )
 
-            if rho.input_norm == InputNormType.SCALED:
+            if rho.input_norm == InputNormType.SCALED_SHIFTED:
                 pair_rho[pair_type] = NormalizedPairInteraction(
                     input_normalization=scaled_input,
                     pair_interaction=rho,
