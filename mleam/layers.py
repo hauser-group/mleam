@@ -578,9 +578,21 @@ class DoubleExpRho(PairRhoScaledShiftedInput):
         ) + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
 
 
-def VoterRho(PairRho):
+class VoterRho(PairRho):
     def __init__(self, pair_type: str, xi: float = 1.0, beta: float = 1.0, **kwargs):
         super().__init__(**kwargs)
+        self.pair_type = pair_type
+        self.xi = self.add_weight(
+            shape=(1),
+            name=f"xi_{pair_type}",
+            initializer=tf.constant_initializer(xi),
+        )
+        self.beta = self.add_weight(
+            shape=(1),
+            name=f"beta_{pair_type}",
+            initializer=tf.constant_initializer(beta),
+        )
+        self._supports_ragged_inputs = True
 
     @tf.function(
         input_signature=(
