@@ -189,6 +189,123 @@ class CubicSpline(tf.keras.layers.Layer):
         )
 
 
+class NaturalCubicSpline(tf.keras.layers.Layer):
+    def __init__(self, x, y=None, x_name="x", y_name="y", **kwargs):
+        """
+        Initialize with x (data points) and y (TensorFlow Variables).
+        x: 1D numpy array of shape (n,) for the interpolation points
+        y: TensorFlow variable of shape (n,) for the values at the interpolation points
+        """
+        super().__init__(**kwargs)
+        assert (x[1:] - x[:-1] > 0.0).all()
+        assert len(x) == len(y)
+        # NOTE: To make the x trainable we would need to also enforce their ordering somehow
+        self.x = self.add_weight(
+            shape=x.shape,
+            name=x_name,
+            trainable=False,
+            initializer=tf.constant_initializer(x),
+        )
+        self.y = self.add_weight(
+            shape=x.shape,
+            name=y_name,
+            trainable=True,
+            initializer=tf.zeros_initializer()
+            if y is None
+            else tf.constant_initializer(y),
+        )
+        self.n = len(x)
+
+        # Compute the distances between the x points (h_i = x_{i+1} - x_i)
+        # NOTE: no equivalent for np.diff in tensorflow
+        self.h = self.x[1:] - self.x[:-1]
+
+    def compute_coefficients(self):
+        """
+        Compute the coefficients of the natural cubic spline.
+        """
+        # Compute the matrix system to solve for the second derivatives
+        A = self._construct_tridiagonal_matrix()
+        b = self._construct_rhs()
+
+        # Solve for the second derivatives (M)
+        # TODO refactor to use diagonals_format = compact
+        M = tf.linalg.tridiagonal_solve(A, b, diagonals_format="matrix")
+
+        return M
+
+    def _construct_tridiagonal_matrix(self):
+        """
+        Construct the tridiagonal matrix for the natural cubic spline system.
+        """
+
+        return (
+            tf.linalg.diag(
+                tf.concat(
+                    [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
+                    axis=0,
+                )
+            )
+            + tf.linalg.diag(tf.concat([tf.zeros((1,)), self.h[1:]], axis=0), k=1)
+            + tf.linalg.diag(tf.concat([self.h[:-1], tf.zeros((1,))], axis=0), k=-1)
+        )
+
+    def _construct_rhs(self):
+        """
+        Construct the right-hand side vector b for the natural cubic spline system.
+        """
+        # The zeros at the start and end correspond to the natural spline boundary
+        # conditions
+        return tf.concat(
+            [
+                tf.zeros((1,)),
+                6
+                * (
+                    (self.y[2:] - self.y[1:-1]) / self.h[1:]
+                    - (self.y[1:-1] - self.y[:-2]) / self.h[:-1]
+                ),
+                tf.zeros((1,)),
+            ],
+            axis=0,
+        )
+
+    @tf.function(
+        input_signature=(
+            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
+        )
+    )
+    def call(self, x_new):
+        """
+        Evaluate the spline values at r points using the coefficients.
+        """
+        x_new = tf.squeeze(x_new)
+        M = self.compute_coefficients()
+
+        # Find the interval where each x_new belongs
+        idx = tf.searchsorted(self.x, x_new) - 1
+        # To enable extrapolation use the edge polynomials whenever
+        # the index is < 0 or > n - 1.
+        idx = tf.clip_by_value(idx, 0, self.n - 2)
+
+        # Get corresponding h values for each x_new
+        h = tf.gather(self.h, idx)
+
+        # Compute spline components
+        a = (tf.gather(self.x, idx + 1) - x_new) / h
+        b = (x_new - tf.gather(self.x, idx)) / h
+
+        # Compute spline value using the natural cubic spline formula
+        spline_value = (
+            a * tf.gather(self.y, idx)
+            + b * tf.gather(self.y, idx + 1)
+            + ((a**3 - a) * tf.gather(M, idx) + (b**3 - b) * tf.gather(M, idx + 1))
+            * (h**2)
+            / 6
+        )
+
+        return tf.reshape(spline_value, (-1, 1))
+
+
 class PairPhi(tf.keras.layers.Layer):
     input_norm = InputNormType.NONE
 
@@ -541,6 +658,18 @@ class CubicSplineRho(PairRho, CubicSpline):
             shape=(len(A_k)),
             name=f"A_k_{pair_type}",
             initializer=tf.constant_initializer(A_k),
+        )
+
+
+class NaturalCubicSplineRho(PairRho, NaturalCubicSpline):
+    def __init__(self, pair_type, R_k, A_k, **kwargs):
+        NaturalCubicSpline.__init__(
+            self,
+            x=R_k,
+            y=A_k,
+            x_name=f"R_k_{pair_type}",
+            y_name=f"A_k_{pair_type}",
+            **kwargs,
         )
 
 
