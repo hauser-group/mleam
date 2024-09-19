@@ -745,7 +745,7 @@ class CommonEmbeddingSMATB(SMATB):
         pair_rho = {}
         for t1, t2 in combinations_with_replacement(self.atom_types, 2):
             pair_type = "".join([t1, t2])
-            normalized_input = InputNormalization(
+            normalized_input = InputNormalizationAndShift(
                 pair_type,
                 r0=self.params.get(("r0", pair_type), 2.7),
                 trainable=self.hyperparams.get("r0_trainable", False),

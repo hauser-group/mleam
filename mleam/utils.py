@@ -297,7 +297,7 @@ def pretrain_rho(
     optimizer=tf.keras.optimizers.Adam(),
 ):
     from mlff.layers import (
-        InputNormalization,
+        InputNormalizationAndShift,
         PolynomialCutoffFunction,
         RhoExp,
         PairInteraction,
@@ -307,7 +307,7 @@ def pretrain_rho(
     nn_rhos = {}
     pair_types = ["NiNi", "NiPt", "PtPt"]
     for pair_type in pair_types:
-        normalized_input = InputNormalization(
+        normalized_input = InputNormalizationAndShift(
             pair_type, r0=params[("r0", pair_type)], trainable=False
         )
         cutoff_function = PolynomialCutoffFunction(
