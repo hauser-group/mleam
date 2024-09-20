@@ -189,12 +189,12 @@ class CubicSpline(tf.keras.layers.Layer):
         )
 
 
-class NaturalCubicSpline(tf.keras.layers.Layer):
+class BaseCubicSpline(tf.keras.layers.Layer):
     def __init__(self, x, y=None, x_name="x", y_name="y", **kwargs):
         """
         Initialize with x (data points) and y (TensorFlow Variables).
         x: 1D numpy array of shape (n,) for the interpolation points
-        y: TensorFlow variable of shape (n,) for the values at the interpolation points
+        y: optional, 1D numpy array of shape (n,) for the values at the interpolation points
         """
         super().__init__(**kwargs)
         assert (x[1:] - x[:-1] > 0.0).all()
@@ -222,7 +222,7 @@ class NaturalCubicSpline(tf.keras.layers.Layer):
 
     def compute_coefficients(self):
         """
-        Compute the coefficients of the natural cubic spline.
+        Compute the coefficients of the cubic spline.
         """
         # Compute the matrix system to solve for the second derivatives
         A = self._construct_tridiagonal_matrix()
@@ -233,41 +233,6 @@ class NaturalCubicSpline(tf.keras.layers.Layer):
         M = tf.linalg.tridiagonal_solve(A, b, diagonals_format="matrix")
 
         return M
-
-    def _construct_tridiagonal_matrix(self):
-        """
-        Construct the tridiagonal matrix for the natural cubic spline system.
-        """
-
-        return (
-            tf.linalg.diag(
-                tf.concat(
-                    [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
-                    axis=0,
-                )
-            )
-            + tf.linalg.diag(tf.concat([tf.zeros((1,)), self.h[1:]], axis=0), k=1)
-            + tf.linalg.diag(tf.concat([self.h[:-1], tf.zeros((1,))], axis=0), k=-1)
-        )
-
-    def _construct_rhs(self):
-        """
-        Construct the right-hand side vector b for the natural cubic spline system.
-        """
-        # The zeros at the start and end correspond to the natural spline boundary
-        # conditions
-        return tf.concat(
-            [
-                tf.zeros((1,)),
-                6
-                * (
-                    (self.y[2:] - self.y[1:-1]) / self.h[1:]
-                    - (self.y[1:-1] - self.y[:-2]) / self.h[:-1]
-                ),
-                tf.zeros((1,)),
-            ],
-            axis=0,
-        )
 
     @tf.function(
         input_signature=(
@@ -304,6 +269,88 @@ class NaturalCubicSpline(tf.keras.layers.Layer):
         )
 
         return tf.reshape(spline_value, (-1, 1))
+
+
+class NaturalCubicSpline(BaseCubicSpline):
+    def _construct_tridiagonal_matrix(self):
+        """
+        Construct the tridiagonal matrix for the natural cubic spline system.
+        """
+
+        return (
+            tf.linalg.diag(
+                tf.concat(
+                    [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
+                    axis=0,
+                )
+            )
+            + tf.linalg.diag(tf.concat([tf.zeros((1,)), self.h[1:]], axis=0), k=1)
+            + tf.linalg.diag(tf.concat([self.h[:-1], tf.zeros((1,))], axis=0), k=-1)
+        )
+
+    def _construct_rhs(self):
+        """
+        Construct the right-hand side vector b for the natural cubic spline system.
+        """
+        # The zeros at the start and end correspond to the natural spline boundary
+        # conditions
+        return tf.concat(
+            [
+                tf.zeros((1,)),
+                6
+                * (
+                    (self.y[2:] - self.y[1:-1]) / self.h[1:]
+                    - (self.y[1:-1] - self.y[:-2]) / self.h[:-1]
+                ),
+                tf.zeros((1,)),
+            ],
+            axis=0,
+        )
+
+
+class ClampedCubicSpline(BaseCubicSpline):
+    def __init__(self, x, y=None, dy=[0, 0], dy_trainable=True, dy_name="dy", **kwargs):
+        super().__init__(x, y=y, **kwargs)
+        self.dy = self.add_weight(
+            shape=(2,),
+            name=dy_name,
+            trainable=dy_trainable,
+            initializer=tf.zeros_initializer()
+            if dy is None
+            else tf.constant_initializer(dy),
+        )
+
+    def _construct_tridiagonal_matrix(self):
+        """
+        Construct the tridiagonal matrix for the clamped cubic spline system.
+        """
+        return (
+            tf.linalg.diag(
+                tf.concat(
+                    [2 * self.h[:1], 2 * (self.h[:-1] + self.h[1:]), 2 * self.h[-1:]],
+                    axis=0,
+                )
+            )
+            + tf.linalg.diag(self.h, k=1)
+            + tf.linalg.diag(self.h, k=-1)
+        )
+
+    def _construct_rhs(self):
+        """
+        Construct the right-hand side vector b for the clamped cubic spline system.
+        """
+        y = self.y
+        h = self.h
+        b = tf.concat(
+            [
+                6 * ((y[1] - y[0]) / h[0] - self.dy[:1]),
+                6 * ((y[2:] - y[1:-1]) / h[1:] - (y[1:-1] - y[:-2]) / h[:-1]),
+                6 * (self.dy[-1:] - (y[-1] - y[-2]) / h[-1]),
+            ],
+            axis=0,
+        )
+
+        return b
 
 
 class PairPhi(tf.keras.layers.Layer):
@@ -515,6 +562,18 @@ class DoubleExpPhi(PairPhiScaledShiftedInput):
         )
 
 
+class NaturalCubicSplinePhi(PairPhi, NaturalCubicSpline):
+    def __init__(self, pair_type, r_k, a_k, **kwargs):
+        NaturalCubicSpline.__init__(
+            self,
+            x=r_k,
+            y=a_k,
+            x_name=f"r_k_{pair_type}",
+            y_name=f"a_k_{pair_type}",
+            **kwargs,
+        )
+
+
 class ExpRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(**kwargs)
@@ -662,13 +721,27 @@ class CubicSplineRho(PairRho, CubicSpline):
 
 
 class NaturalCubicSplineRho(PairRho, NaturalCubicSpline):
-    def __init__(self, pair_type, R_k, A_k, **kwargs):
+    def __init__(self, pair_type, R_k, A_k=None, **kwargs):
         NaturalCubicSpline.__init__(
             self,
             x=R_k,
             y=A_k,
             x_name=f"R_k_{pair_type}",
             y_name=f"A_k_{pair_type}",
+            **kwargs,
+        )
+
+
+class ClampedCubicSplineRho(PairRho, ClampedCubicSpline):
+    def __init__(self, pair_type, R_k, A_k=None, dA_k=None, **kwargs):
+        ClampedCubicSpline.__init__(
+            self,
+            x=R_k,
+            y=A_k,
+            dy=dA_k,
+            x_name=f"R_k_{pair_type}",
+            y_name=f"A_k_{pair_type}",
+            dy_name=f"dA_k_{pair_type}",
             **kwargs,
         )
 
