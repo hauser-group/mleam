@@ -392,7 +392,9 @@ class BornMayer(PairPhiScaledShiftedInput):
 
 
 class SuttonChenPhi(PairPhi):
-    def __init__(self, pair_type: str, c: float = 3.0, n: int = 6, **kwargs):
+    def __init__(
+        self, pair_type: str, c: float = 3.0, n: int = 6, n_trainable=False, **kwargs
+    ):
         super().__init__(**kwargs)
         self.pair_type = pair_type
         self.c = self.add_weight(
@@ -402,7 +404,7 @@ class SuttonChenPhi(PairPhi):
             shape=(1),
             name="n_" + pair_type,
             initializer=tf.constant_initializer(n),
-            trainable=False,
+            trainable=n_trainable,
         )
         self._supports_ragged_inputs = True
 
@@ -597,7 +599,9 @@ class ExpRho(PairRhoScaledShiftedInput):
 
 
 class SuttonChenRho(PairRho):
-    def __init__(self, pair_type: str, a: float = 3.0, m: int = 6, **kwargs):
+    def __init__(
+        self, pair_type: str, a: float = 3.0, m: int = 6, m_trainable=False, **kwargs
+    ):
         super().__init__(**kwargs)
         self.pair_type = pair_type
         self.a = self.add_weight(
@@ -607,7 +611,7 @@ class SuttonChenRho(PairRho):
             shape=(1),
             name="m_" + pair_type,
             initializer=tf.constant_initializer(m),
-            trainable=False,
+            trainable=m_trainable,
         )
         self._supports_ragged_inputs = True
 

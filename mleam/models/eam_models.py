@@ -622,6 +622,7 @@ class SuttonChen(EAMPotential):
             pair_type,
             c=self.params.get(("c", pair_type), 3.0),
             n=self.params.get(("n", pair_type), 6),
+            n_trainable=self.hyperparams.get("n_trainable", False),
             name="Phi-%s" % pair_type,
         )
 
@@ -630,6 +631,7 @@ class SuttonChen(EAMPotential):
             pair_type,
             a=self.params.get(("a", pair_type), 3.0),
             m=self.params.get(("m", pair_type), 6),
+            n_trainable=self.hyperparams.get("m_trainable", False),
             name="Rho-%s" % pair_type,
         )
 
