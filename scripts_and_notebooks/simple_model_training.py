@@ -93,7 +93,7 @@ def train_model(
             mode="min",
         ),
         tf.keras.callbacks.TensorBoard(
-            log_dir=f"./logs/{run_name}/",
+            log_dir=f"./logs/{run_name}/", profile_batch="10, 15"
         ),
     ]
 
