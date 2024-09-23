@@ -1,6 +1,11 @@
 import pytest
 import numpy as np
-from mleam.layers import CubicSpline, NaturalCubicSpline, ClampedCubicSpline
+from mleam.layers import (
+    CubicSpline,
+    NaturalCubicSpline,
+    ClampedCubicSpline,
+    ClampedHermiteCubicSpline,
+)
 from scipy.interpolate import CubicSpline as ScipyCubicSpline
 
 
@@ -35,10 +40,12 @@ def test_cubic_spline(atol=1e-6):
         (NaturalCubicSpline, {}, ((2, 0.0), (2, 0.0))),
         (ClampedCubicSpline, {"dy": (0.0, 0.0)}, ((1, 0.0), (1, 0.0))),
         (ClampedCubicSpline, {"dy": (-0.1, 0.2)}, ((1, -0.1), (1, 0.2))),
+        (ClampedHermiteCubicSpline, {"dy": (0.0, 0.0)}, ((1, 0.0), (1, 0.0))),
+        (ClampedHermiteCubicSpline, {"dy": (-0.1, 0.2)}, ((1, -0.1), (1, 0.2))),
     ],
 )
 def test_cubic_spline_vs_scipy(layer, kwargs, bc_type, atol=1e-6):
-    x_fit = np.array([0, 0.8, 2.1, 3.0, 3.5, 4.0])
+    x_fit = np.array([0, 0.8, 2.0, 2.1, 3.0, 3.5, 4.0])
 
     def target_fun(x):
         return np.sinc(x)
