@@ -48,8 +48,18 @@ def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
     """Only testing save_weights as standard save does not seem to
     work with ragged output tensors."""
     tf.keras.backend.clear_session()
-    # Random input
-    xyzs = tf.RaggedTensor.from_tensor(tf.random.normal((1, 4, 3)), lengths=[4])
+    N = 4
+    xyzs = tf.RaggedTensor.from_tensor(
+        [
+            [
+                [0.0, 0.0, 0.0],
+                [-2.17, 0.91, -0.75],
+                [-0.62, -0.99, -0.94],
+                [1.22, -0.04, 0.49],
+            ]
+        ],
+        lengths=[N],
+    )
     types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
 
     atom_types = ["Ni", "Pt"]
@@ -125,8 +135,18 @@ class ModelTest:
             """Only testing save_weights as standard save does not seem to
             work with ragged output tensors."""
             tf.keras.backend.clear_session()
-            # Random input
-            xyzs = tf.RaggedTensor.from_tensor(tf.random.normal((1, 4, 3)), lengths=[4])
+            N = 4
+            xyzs = tf.RaggedTensor.from_tensor(
+                [
+                    [
+                        [0.0, 0.0, 0.0],
+                        [-2.17, 0.91, -0.75],
+                        [-0.62, -0.99, -0.94],
+                        [1.22, -0.04, 0.49],
+                    ]
+                ],
+                lengths=[N],
+            )
             types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
 
             model = self.get_random_model(atom_types=["Ni", "Pt"])
@@ -166,8 +186,17 @@ class ModelTest:
             tf.keras.backend.clear_session()
             # Number of atoms
             N = 4
-            # Random input
-            xyzs = tf.RaggedTensor.from_tensor(tf.random.normal((1, N, 3)), lengths=[N])
+            xyzs = tf.RaggedTensor.from_tensor(
+                [
+                    [
+                        [0.0, 0.0, 0.0],
+                        [-2.17, 0.91, -0.75],
+                        [-0.62, -0.99, -0.94],
+                        [1.22, -0.04, 0.49],
+                    ]
+                ],
+                lengths=[N],
+            )
             types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
 
             model = self.get_random_model(atom_types=["Ni", "Pt"])
@@ -198,9 +227,16 @@ class ModelTest:
             try:
                 # Number of atoms
                 N = 4
-                # Random input
                 xyzs = tf.RaggedTensor.from_tensor(
-                    tf.random.normal((1, N, 3), dtype=tf.float64), lengths=[N]
+                    [
+                        [
+                            [0.0, 0.0, 0.0],
+                            [-2.17, 0.91, -0.75],
+                            [-0.62, -0.99, -0.94],
+                            [1.22, -0.04, 0.49],
+                        ]
+                    ],
+                    lengths=[N],
                 )
                 types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
 
