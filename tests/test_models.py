@@ -29,7 +29,7 @@ from mleam.models import (
 from utils import derive_scalar_wrt_array
 import numdifftools as nd
 
-test_models_decorator = pytest.mark.parametrize(
+models_test_decorator = pytest.mark.parametrize(
     "model_class, params, hyperparams",
     [
         (SMATB, {}, {}),
@@ -43,7 +43,7 @@ test_models_decorator = pytest.mark.parametrize(
 )
 
 
-@test_models_decorator
+@models_test_decorator
 def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
     """Only testing save_weights as standard save does not seem to
     work with ragged output tensors."""
@@ -94,7 +94,7 @@ def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
     tf.keras.backend.clear_session()
 
 
-@test_models_decorator
+@models_test_decorator
 def test_model_forces_numerically(model_class, params, hyperparams):
     tf.keras.backend.clear_session()
     # Number of atoms
