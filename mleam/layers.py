@@ -356,6 +356,10 @@ class ClampedCubicSpline(BaseCubicSpline):
 class PairPhi(tf.keras.layers.Layer):
     input_norm = InputNormType.NONE
 
+    def __init__(self, pair_type: str, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+
 
 class PairPhiScaledShiftedInput(PairPhi):
     input_norm = InputNormType.SCALED_SHIFTED
@@ -364,6 +368,10 @@ class PairPhiScaledShiftedInput(PairPhi):
 class PairRho(tf.keras.layers.Layer):
     input_norm = InputNormType.NONE
 
+    def __init__(self, pair_type: str, **kwargs):
+        super().__init__(**kwargs)
+        self.pair_type = pair_type
+
 
 class PairRhoScaledShiftedInput(PairRho):
     input_norm = InputNormType.SCALED_SHIFTED
@@ -371,8 +379,7 @@ class PairRhoScaledShiftedInput(PairRho):
 
 class BornMayer(PairPhiScaledShiftedInput):
     def __init__(self, pair_type, A=0.2, p=9.2, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.A = self.add_weight(
             shape=(1), name="A_" + pair_type, initializer=tf.constant_initializer(A)
         )
@@ -395,8 +402,7 @@ class SuttonChenPhi(PairPhi):
     def __init__(
         self, pair_type: str, c: float = 3.0, n: int = 6, n_trainable=False, **kwargs
     ):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.c = self.add_weight(
             shape=(1), name="c_" + pair_type, initializer=tf.constant_initializer(c)
         )
@@ -428,8 +434,7 @@ class DoubleSuttonChenPhi(PairPhi):
         n_2: int = 8,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.c_1 = self.add_weight(
             shape=(1), name=f"c_1_{pair_type}", initializer=tf.constant_initializer(c_1)
         )
@@ -470,8 +475,7 @@ class FinnisSinclairPhi(PairPhi):
         c2: float = 0.0,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.c = self.add_weight(
             shape=(1), name="c_" + pair_type, initializer=tf.constant_initializer(c)
         )
@@ -502,7 +506,7 @@ class FinnisSinclairPhi(PairPhi):
 
 class CubicSplinePhi(PairPhi, CubicSpline):
     def __init__(self, pair_type, r_k, a_k, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(pair_type, **kwargs)
         assert len(r_k) == len(a_k)
         self.nodes = self.add_weight(
             shape=(len(r_k)),
@@ -519,7 +523,7 @@ class CubicSplinePhi(PairPhi, CubicSpline):
 
 class MorsePhi(PairPhiScaledShiftedInput):
     def __init__(self, pair_type: str, D: float = 1, a: float = 1, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(pair_type, **kwargs)
         self.D = self.add_weight(
             shape=(1), name=f"D_{pair_type}", initializer=tf.constant_initializer(D)
         )
@@ -536,8 +540,7 @@ class MorsePhi(PairPhiScaledShiftedInput):
 
 class DoubleExpPhi(PairPhiScaledShiftedInput):
     def __init__(self, pair_type, A_1=1.6, p_1=3.5, A_2=0.8, p_2=1.0, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.A_1 = self.add_weight(
             shape=(1), name=f"A_1_{pair_type}", initializer=tf.constant_initializer(A_1)
         )
@@ -566,6 +569,7 @@ class DoubleExpPhi(PairPhiScaledShiftedInput):
 
 class NaturalCubicSplinePhi(PairPhi, NaturalCubicSpline):
     def __init__(self, pair_type, r_k, a_k, **kwargs):
+        self.pair_type = pair_type
         NaturalCubicSpline.__init__(
             self,
             x=r_k,
@@ -578,8 +582,7 @@ class NaturalCubicSplinePhi(PairPhi, NaturalCubicSpline):
 
 class ExpRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.xi = self.add_weight(
             shape=(1), name="xi_" + pair_type, initializer=tf.constant_initializer(xi)
         )
@@ -602,8 +605,7 @@ class SuttonChenRho(PairRho):
     def __init__(
         self, pair_type: str, a: float = 3.0, m: int = 6, m_trainable=False, **kwargs
     ):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.a = self.add_weight(
             shape=(1), name="a_" + pair_type, initializer=tf.constant_initializer(a)
         )
@@ -635,8 +637,7 @@ class DoubleSuttonChenRho(PairRho):
         m_2: int = 8,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.a_1 = self.add_weight(
             shape=(1), name=f"a_1_{pair_type}", initializer=tf.constant_initializer(a_1)
         )
@@ -677,8 +678,7 @@ class FinnisSinclairRho(PairRho):
         beta_trainable: bool = True,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.A = self.add_weight(
             shape=(1), name="A_" + pair_type, initializer=tf.constant_initializer(A)
         )
@@ -709,7 +709,7 @@ class FinnisSinclairRho(PairRho):
 
 class CubicSplineRho(PairRho, CubicSpline):
     def __init__(self, pair_type, R_k, A_k, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(pair_type, **kwargs)
         assert len(R_k) == len(A_k)
         self.nodes = self.add_weight(
             shape=(len(R_k)),
@@ -726,6 +726,7 @@ class CubicSplineRho(PairRho, CubicSpline):
 
 class NaturalCubicSplineRho(PairRho, NaturalCubicSpline):
     def __init__(self, pair_type, R_k, A_k=None, **kwargs):
+        self.pair_type = pair_type
         NaturalCubicSpline.__init__(
             self,
             x=R_k,
@@ -738,6 +739,7 @@ class NaturalCubicSplineRho(PairRho, NaturalCubicSpline):
 
 class ClampedCubicSplineRho(PairRho, ClampedCubicSpline):
     def __init__(self, pair_type, R_k, A_k=None, dA_k=None, **kwargs):
+        self.pair_type = pair_type
         ClampedCubicSpline.__init__(
             self,
             x=R_k,
@@ -752,8 +754,7 @@ class ClampedCubicSplineRho(PairRho, ClampedCubicSpline):
 
 class DoubleExpRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, xi_1=1.6, q_1=3.5, xi_2=0.8, q_2=1.0, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.xi_1 = self.add_weight(
             shape=(1),
             name="xi_1_" + pair_type,
@@ -786,8 +787,7 @@ class DoubleExpRho(PairRhoScaledShiftedInput):
 
 class VoterRho(PairRho):
     def __init__(self, pair_type: str, xi: float = 1.0, beta: float = 1.0, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.xi = self.add_weight(
             shape=(1),
             name=f"xi_{pair_type}",
@@ -816,8 +816,7 @@ class VoterRho(PairRho):
 
 class NNRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.dense_layers = []
         if regularization:
             regularization = tf.keras.regularizers.L2(l2=regularization)
@@ -845,8 +844,7 @@ class NNRho(PairRhoScaledShiftedInput):
 
 class NNRhoExp(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, layers=[20, 20], regularization=None, **kwargs):
-        super().__init__(**kwargs)
-        self.pair_type = pair_type
+        super().__init__(pair_type, **kwargs)
         self.dense_layers = []
         if regularization:
             regularization = tf.keras.regularizers.L2(l2=regularization)
