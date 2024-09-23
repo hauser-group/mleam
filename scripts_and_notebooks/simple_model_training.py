@@ -6,7 +6,9 @@ from mleam.losses import MeanSquaredErrorForces
 import os
 
 
-def train_model(model, run_name, params, hyperparams, random_seed=0, epochs=10):
+def train_model(
+    model, run_name, params, hyperparams, random_seed=0, epochs=10, restart=None
+):
     tf.keras.utils.set_random_seed(random_seed)
     tf.config.experimental.enable_op_determinism()
 
@@ -50,6 +52,12 @@ def train_model(model, run_name, params, hyperparams, random_seed=0, epochs=10):
         build_forces=True,
         preprocessed_input=True,
     )
+
+    if restart is not None:
+        # Build model by calling it once:
+        model.predict(dataset_val)
+        # Load weights from restart file
+        model.load_weights(restart)
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(),
