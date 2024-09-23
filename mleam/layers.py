@@ -229,8 +229,7 @@ class BaseCubicSpline(tf.keras.layers.Layer):
         b = self._construct_rhs()
 
         # Solve for the second derivatives (M)
-        # TODO refactor to use diagonals_format = compact
-        M = tf.linalg.tridiagonal_solve(A, b, diagonals_format="matrix")
+        M = tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
 
         return M
 
@@ -276,17 +275,15 @@ class NaturalCubicSpline(BaseCubicSpline):
         """
         Construct the tridiagonal matrix for the natural cubic spline system.
         """
-
-        return (
-            tf.linalg.diag(
-                tf.concat(
-                    [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
-                    axis=0,
-                )
-            )
-            + tf.linalg.diag(tf.concat([tf.zeros((1,)), self.h[1:]], axis=0), k=1)
-            + tf.linalg.diag(tf.concat([self.h[:-1], tf.zeros((1,))], axis=0), k=-1)
+        # Last element of superdiag is ignored
+        superdiag = tf.concat([tf.zeros((1,)), self.h[1:], tf.zeros((1,))], axis=0)
+        maindiag = tf.concat(
+            [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
+            axis=0,
         )
+        # First element of subdiag is ignored
+        subdiag = tf.concat([tf.zeros((1,)), self.h[:-1], tf.zeros((1,))], axis=0)
+        return tf.stack([superdiag, maindiag, subdiag], axis=0)
 
     def _construct_rhs(self):
         """
@@ -324,16 +321,15 @@ class ClampedCubicSpline(BaseCubicSpline):
         """
         Construct the tridiagonal matrix for the clamped cubic spline system.
         """
-        return (
-            tf.linalg.diag(
-                tf.concat(
-                    [2 * self.h[:1], 2 * (self.h[:-1] + self.h[1:]), 2 * self.h[-1:]],
-                    axis=0,
-                )
-            )
-            + tf.linalg.diag(self.h, k=1)
-            + tf.linalg.diag(self.h, k=-1)
+        # Last element of superdiag is ignored
+        superdiag = tf.concat([self.h, tf.zeros((1,))], axis=0)
+        maindiag = tf.concat(
+            [2 * self.h[:1], 2 * (self.h[:-1] + self.h[1:]), 2 * self.h[-1:]],
+            axis=0,
         )
+        # First element of subdiag is ignored
+        subdiag = tf.concat([tf.zeros((1,)), self.h], axis=0)
+        return tf.stack([superdiag, maindiag, subdiag], axis=0)
 
     def _construct_rhs(self):
         """
