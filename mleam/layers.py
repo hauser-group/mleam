@@ -580,6 +580,21 @@ class NaturalCubicSplinePhi(PairPhi, NaturalCubicSpline):
         )
 
 
+class ClampedCubicSplinePhi(PairPhi, ClampedCubicSpline):
+    def __init__(self, pair_type, r_k, a_k=None, da_k=None, **kwargs):
+        self.pair_type = pair_type
+        ClampedCubicSpline.__init__(
+            self,
+            x=r_k,
+            y=a_k,
+            dy=da_k,
+            x_name=f"r_k_{pair_type}",
+            y_name=f"a_k_{pair_type}",
+            dy_name=f"da_k_{pair_type}",
+            **kwargs,
+        )
+
+
 class ExpRho(PairRhoScaledShiftedInput):
     def __init__(self, pair_type, xi=1.6, q=3.5, **kwargs):
         super().__init__(pair_type, **kwargs)
