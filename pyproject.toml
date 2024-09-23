@@ -29,6 +29,7 @@ tests = [
   "pytest",
   "pytest-cov",
   "pytest-resource-path",
+  "scipy",
   "numdifftools",
 ]
 

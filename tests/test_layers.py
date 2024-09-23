@@ -1,5 +1,7 @@
+import pytest
 import numpy as np
-from mleam.layers import CubicSpline
+from mleam.layers import CubicSpline, NaturalCubicSpline, ClampedCubicSpline
+from scipy.interpolate import CubicSpline as ScipyCubicSpline
 
 
 def test_cubic_spline(atol=1e-6):
@@ -25,3 +27,30 @@ def test_cubic_spline(atol=1e-6):
     ).reshape(-1, 1)
 
     np.testing.assert_allclose(spline(r_test), r_ref, atol=atol)
+
+
+@pytest.mark.parametrize(
+    "layer, kwargs, bc_type",
+    [
+        (NaturalCubicSpline, {}, ((2, 0.0), (2, 0.0))),
+        (ClampedCubicSpline, {"dy": (0.0, 0.0)}, ((1, 0.0), (1, 0.0))),
+        (ClampedCubicSpline, {"dy": (-0.1, 0.2)}, ((1, -0.1), (1, 0.2))),
+    ],
+)
+def test_cubic_spline_vs_scipy(layer, kwargs, bc_type, atol=1e-6):
+    x_fit = np.array([0, 0.8, 2.1, 3.0, 3.5, 4.0])
+
+    def target_fun(x):
+        return np.sinc(x)
+
+    scipy_spline = ScipyCubicSpline(x_fit, target_fun(x_fit), bc_type=bc_type)
+
+    x_test = np.linspace(-0.1, 4.1, 101)
+
+    test_spline = layer(x_fit, target_fun(x_fit), **kwargs)
+
+    np.testing.assert_allclose(
+        test_spline(x_test.reshape(-1, 1)).numpy().flatten(),
+        scipy_spline(x_test),
+        atol=atol,
+    )
