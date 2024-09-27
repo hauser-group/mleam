@@ -20,6 +20,8 @@ from mleam.layers import (
     CubicSplineRho,
     DoubleExpPhi,
     DoubleExpRho,
+    FittedQuinticSplinePhi,
+    FittedQuinticSplineRho,
     NNRho,
     NNRhoExp,
     SqrtEmbedding,
@@ -68,7 +70,7 @@ class EAMPotential(tf.keras.Model):
                       cutoff until which interatomic distances are calculated.
         method: str switch for different implementations of the main body
                     options are:
-                    - 'partition_stitch' default and probably savest choice
+                    - 'partition_stitch' default and probably safest choice
                     - 'where' uses branchless programming can be significantly
                               faster as it is easier to parallelize
                     - 'gather_scatter' old implementation, no longer maintained
@@ -734,6 +736,31 @@ class DoubleExp(EAMPotential):
             q_1=self.params.get(("q_1", pair_type), 3.5),
             xi_2=self.params.get(("xi_2", pair_type), 0.1),
             q_2=self.params.get(("q_2", pair_type), 0.1),
+            name="Rho-%s" % pair_type,
+        )
+
+    def get_embedding(self, atom_type: str):
+        return SqrtEmbedding(name=f"{atom_type}-Embedding")
+
+
+class FittedQuinticSpline(EAMPotential):
+    def get_pair_potential(self, pair_type: str):
+        return FittedQuinticSplinePhi(
+            pair_type,
+            r_k=self.params.get(("r_k", pair_type), np.array([2.0, 3.0])),
+            a_k=self.params.get(("a_k", pair_type)),
+            da_k=self.params.get(("da_k", pair_type)),
+            dda_k=self.params.get(("dda_k", pair_type)),
+            name="Phi-%s" % pair_type,
+        )
+
+    def get_rho(self, pair_type: str):
+        return FittedQuinticSplineRho(
+            pair_type,
+            R_k=self.params.get(("R_k", pair_type), np.array([2.0, 3.0])),
+            A_k=self.params.get(("A_k", pair_type)),
+            dA_k=self.params.get(("dA_k", pair_type)),
+            ddA_k=self.params.get(("ddA_k", pair_type)),
             name="Rho-%s" % pair_type,
         )
 
