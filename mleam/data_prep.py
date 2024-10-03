@@ -78,7 +78,10 @@ def preprocessed_dataset_from_json(
                 inp["positions"], inp["types"], len(type_dict), cutoff=cutoff
             )
             return dict(
-                types=inp["types"], pair_types=pair_types, distances=r, dr_dx=dr_dx
+                types=inp["types"],
+                pair_types=pair_types,
+                distances=r,
+                dr_dx=dr_dx,
             )
     else:
 
@@ -87,18 +90,27 @@ def preprocessed_dataset_from_json(
             r, pair_types = distances_and_pair_types_no_grad(
                 inp["positions"], inp["types"], len(type_dict), cutoff=cutoff
             )
-            return dict(types=inp["types"], pair_types=pair_types, distances=r)
+            return dict(
+                types=inp["types"],
+                pair_types=pair_types,
+                distances=r,
+            )
 
     input_dataset = tf.data.Dataset.from_tensor_slices(
         {
             "types": tf.expand_dims(
                 tf.ragged.constant(
-                    [[type_dict[t] for t in syms] for syms in data["symbols"]]
+                    [[type_dict[t] for t in syms] for syms in data["symbols"]],
+                    ragged_rank=1,
+                    name="atom_types_to_ragged",
                 ),
                 axis=-1,
             ),
             "positions": tf.ragged.constant(
-                data["positions"], ragged_rank=1, dtype=floatx
+                data["positions"],
+                ragged_rank=1,
+                dtype=floatx,
+                name="positions_to_ragged",
             ),
         }
     )
@@ -110,7 +122,7 @@ def preprocessed_dataset_from_json(
     output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    dataset = dataset.ragged_batch(batch_size=batch_size)
+    dataset = dataset.ragged_batch(batch_size=batch_size, name="ragged_batching")
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
 
