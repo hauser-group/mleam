@@ -391,7 +391,9 @@ class EAMPotential(tf.keras.Model):
     def body_partition_stitch(self, types, distances, pair_types):
         """main body using dynamic_partition and dynamic_stitch methods"""
         pair_type_indices = tf.dynamic_partition(
-            tf.expand_dims(tf.range(tf.size(distances)), -1),
+            tf.expand_dims(
+                tf.range(tf.size(distances)), -1, name="range_for_pair_indices"
+            ),
             pair_types.flat_values,
             len(self.atom_pair_types),
             name="pair_type_indices",
@@ -412,12 +414,22 @@ class EAMPotential(tf.keras.Model):
             for t, part in zip(self.atom_pair_types, partitioned_r)
         ]
 
-        rho = tf.dynamic_stitch(pair_type_indices, rho)
-        phi = tf.dynamic_stitch(pair_type_indices, phi)
+        rho = tf.dynamic_stitch(pair_type_indices, rho, name="stitch_rho")
+        phi = tf.dynamic_stitch(pair_type_indices, phi, name="stitch_phi")
 
         # Reshape to ragged tensors
-        phi = tf.RaggedTensor.from_nested_row_splits(phi, distances.nested_row_splits)
-        rho = tf.RaggedTensor.from_nested_row_splits(rho, distances.nested_row_splits)
+        rho = tf.RaggedTensor.from_nested_row_splits(
+            rho,
+            distances.nested_row_splits,
+            name="reshape_rho_to_ragged",
+            validate=False,
+        )
+        phi = tf.RaggedTensor.from_nested_row_splits(
+            phi,
+            distances.nested_row_splits,
+            name="reshape_phi_to_ragged",
+            validate=False,
+        )
 
         # Sum over atoms j
         sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho")
@@ -448,11 +460,14 @@ class EAMPotential(tf.keras.Model):
         )
 
         atomic_energies = 0.5 * sum_phi.flat_values + embedding_energies
-        # Reshape to ragged
+        # Reshape to ragged: (N_structure, N_atoms, 1)
         atomic_energies = tf.RaggedTensor.from_row_splits(
-            atomic_energies, types.row_splits, name="atomic_energies"
+            atomic_energies,
+            types.row_splits,
+            name="atomic_energies",
+            validate=False,
         )
-        # Sum over atoms i
+        # Sum over atoms i.
         return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
 
     @tf.function
