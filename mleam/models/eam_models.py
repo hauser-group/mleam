@@ -430,7 +430,10 @@ class EAMPotential(tf.keras.Model):
 
         # Embedding energy
         partitioned_sum_rho = tf.dynamic_partition(
-            sum_rho, types, len(self.atom_types), name="partitioned_sum_rho"
+            sum_rho.flat_values,
+            types.flat_values,
+            len(self.atom_types),
+            name="partitioned_sum_rho",
         )
         type_indices = tf.dynamic_partition(
             tf.expand_dims(tf.range(tf.size(sum_rho)), -1),
