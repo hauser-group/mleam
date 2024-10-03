@@ -194,11 +194,13 @@ class EAMPotential(tf.keras.Model):
         }
         return pair_potentials, pair_rho, embedding_functions, offsets
 
+    @tf.function
     def call(self, inputs):
         if self.preprocessed_input:
             return self.shallow_call(inputs)
         return self.deep_call(inputs)
 
+    @tf.function
     def deep_call(self, inputs):
         types = inputs["types"]
         positions = inputs["positions"]
@@ -235,20 +237,7 @@ class EAMPotential(tf.keras.Model):
             return self.main_body_with_forces(types, distances, pair_types, dr_dx)
         return self.main_body_no_forces(types, distances, pair_types)
 
-    @tf.function(
-        input_signature=(
-            tf.RaggedTensorSpec(tf.TensorShape([None, None, 1]), tf.int32, 1, tf.int64),
-            tf.RaggedTensorSpec(
-                tf.TensorShape([None, None, None, 1]),
-                tf.keras.backend.floatx(),
-                2,
-                tf.int64,
-            ),
-            tf.RaggedTensorSpec(
-                tf.TensorShape([None, None, None, 1]), tf.int32, 2, tf.int64
-            ),
-        )
-    )
+    @tf.function
     def main_body_no_forces(self, types, distances, pair_types):
         """Calculates the energy per atom by calling the main body"""
         if self.method == "partition_stitch":
@@ -268,26 +257,7 @@ class EAMPotential(tf.keras.Model):
 
         return {"energy": energy, "energy_per_atom": energy_per_atom}
 
-    @tf.function(
-        input_signature=(
-            tf.RaggedTensorSpec(tf.TensorShape([None, None, 1]), tf.int32, 1, tf.int64),
-            tf.RaggedTensorSpec(
-                tf.TensorShape([None, None, None, 1]),
-                tf.keras.backend.floatx(),
-                2,
-                tf.int64,
-            ),
-            tf.RaggedTensorSpec(
-                tf.TensorShape([None, None, None, 1]), tf.int32, 2, tf.int64
-            ),
-            tf.RaggedTensorSpec(
-                tf.TensorShape([None, None, None, None, 3]),
-                tf.keras.backend.floatx(),
-                3,
-                tf.int64,
-            ),
-        )
-    )
+    @tf.function
     def main_body_with_forces(self, types, distances, pair_types, dr_dx):
         """Calculates the energy per atom and the derivative of the total
         energy with respect to the distances
