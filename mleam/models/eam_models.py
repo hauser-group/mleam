@@ -293,7 +293,7 @@ class EAMPotential(tf.keras.Model):
         energy with respect to the distances
         """
         with tf.GradientTape() as tape:
-            tape.watch(distances.flat_values)
+            tape.watch(distances)
             if self.method == "partition_stitch":
                 energy = self.body_partition_stitch(types, distances, pair_types)
             elif self.method == "gather_scatter":
@@ -309,14 +309,8 @@ class EAMPotential(tf.keras.Model):
             energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
         )
 
+        dE_dr = tape.gradient(energy, distances)
         if self.force_method == "old":
-            # Probably should not be reshaped to RaggedTensor only to sum
-            # over these dimensions in the next step.
-            dE_dr = tf.RaggedTensor.from_nested_row_splits(
-                tape.gradient(energy, distances.flat_values),
-                distances.nested_row_splits,
-                name="dE_dr",
-            )
             # dr_dx.shape = (batch_size, None, None, None, 3)
             # dE_dr.shape = (batch_size, None, None, 1)
             # Sum over atom indices i and j. Force is the negative gradient.
@@ -327,12 +321,7 @@ class EAMPotential(tf.keras.Model):
             )
         elif self.force_method == "new":
             dr_dx = dr_dx.merge_dims(1, 2)
-            print(dr_dx.nested_row_splits)
-            dE_dr = tf.RaggedTensor.from_row_splits(
-                tape.gradient(energy, distances.flat_values),
-                dr_dx.row_splits,
-                name="dE_dr",
-            )
+            dE_dr = dE_dr.merge_dims(1, 2)
             # dr_dx.shape = (batch_size, None, None, 3)
             # dE_dr.shape = (batch_size, None, 1)
             forces = -tf.reduce_sum(
