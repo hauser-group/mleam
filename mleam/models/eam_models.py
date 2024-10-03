@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from typing import List
 from tensorflow.python.ops.ragged.ragged_where_op import where as ragged_where
 from itertools import combinations_with_replacement
 from mleam.layers import (
@@ -44,7 +45,7 @@ class EAMPotential(tf.keras.Model):
 
     def __init__(
         self,
-        atom_types,
+        atom_types: List[str],
         params={},
         hyperparams={},
         build_forces=False,
