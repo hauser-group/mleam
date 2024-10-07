@@ -127,6 +127,90 @@ def preprocessed_dataset_from_json(
     return dataset
 
 
+def preprocessed_dummy_dataset(
+    type_dict={"Ni": 1, "Pt": 2},
+    batch_size=50,
+    forces=True,
+    floatx=tf.float32,
+    num_batches=25,
+    sizes=[38, 55, 147],
+    rng=np.random.default_rng(0),
+    manual_batching=True,
+):
+    N_atoms = rng.choice(sizes, batch_size)
+    row_splits_0 = [0]
+    row_splits_1 = [0]
+    row_splits_2 = [0]
+    for ni in N_atoms:
+        row_splits_0.append(row_splits_0[-1] + ni)
+        for nj in range(ni):
+            row_splits_1.append(row_splits_1[-1] + (ni - 1))
+            for nk in range(ni - 1):
+                row_splits_2.append(row_splits_2[-1] + ni)
+
+    types = [rng.choice(list(type_dict.values()), n) for n in N_atoms]
+    distances = tf.constant(
+        rng.lognormal(
+            mean=np.log(2.5), sigma=0.25, size=(sum([n * (n - 1) for n in N_atoms]), 1)
+        ),
+        dtype=floatx,
+    )
+    pair_types = [
+        types_n[i] + types_n[j]
+        for n, types_n in zip(N_atoms, types)
+        for i in range(n)
+        for j in range(n - 1)
+    ]
+
+    input_dict = {
+        "types": tf.RaggedTensor.from_row_splits(
+            np.concatenate(types, dtype=np.int32).reshape(-1, 1),
+            row_splits_0,
+        ),
+        "distances": tf.RaggedTensor.from_nested_row_splits(
+            distances, (row_splits_0, row_splits_1)
+        ),
+        "pair_types": tf.RaggedTensor.from_nested_row_splits(
+            pair_types, (row_splits_0, row_splits_1)
+        ),
+    }
+
+    energy = tf.constant(rng.normal(size=(batch_size, 1)), dtype=floatx)
+    energy_per_atom = energy / N_atoms[:, np.newaxis]
+
+    output_dict = {
+        "energy": energy,
+        "energy_per_atom": energy_per_atom,
+    }
+
+    if forces:
+        dr_dx = tf.constant(
+            rng.normal(size=(sum([n * (n - 1) * n for n in N_atoms]), 3)), dtype=floatx
+        )
+        input_dict["dr_dx"] = tf.RaggedTensor.from_nested_row_splits(
+            dr_dx,
+            (row_splits_0, row_splits_1, row_splits_2),
+        )
+        output_dict["forces"] = tf.RaggedTensor.from_row_splits(
+            tf.constant(rng.normal(size=(sum(N_atoms), 3)), dtype=floatx), row_splits_0
+        )
+
+    if manual_batching:
+        for key, val in input_dict.items():
+            input_dict[key] = tf.expand_dims(val, axis=0)
+        for key, val in output_dict.items():
+            output_dict[key] = tf.expand_dims(val, axis=0)
+
+    input_dataset = tf.data.Dataset.from_tensor_slices(input_dict)
+    output_dataset = tf.data.Dataset.from_tensor_slices(output_dict)
+
+    dataset = tf.data.Dataset.zip((input_dataset, output_dataset)).repeat(num_batches)
+    if not manual_batching:
+        dataset = dataset.ragged_batch(batch_size)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    return dataset
+
+
 def descriptor_dataset_from_json(
     path,
     descriptor_set,
