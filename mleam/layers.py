@@ -19,12 +19,12 @@ class PolynomialCutoffFunction(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(b),
         )
 
-    @tf.function
     def call(self, r):
         r_scaled = (r - self.a) / (self.b - self.a)
         result = tf.where(
             tf.less(r, self.b),
-            1.0 - 10.0 * r_scaled**3 + 15.0 * r_scaled**4 - 6.0 * r_scaled**5,
+            1.0
+            + ((15 - 6 * r_scaled) * r_scaled - 10) * r_scaled * r_scaled * r_scaled,
             tf.zeros_like(r),
         )
         return tf.where(tf.less_equal(r, self.a), tf.ones_like(r), result)
@@ -47,7 +47,6 @@ class PolynomialCutoffFunctionMask(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(b),
         )
 
-    @tf.function
     def call(self, r):
         result = tf.where(tf.less_equal(r, self.a), tf.ones_like(r), tf.zeros_like(r))
         cond = tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b))
@@ -75,7 +74,6 @@ class SmoothCutoffFunction(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(b),
         )
 
-    @tf.function
     def call(self, r):
         condition = tf.logical_and(tf.greater(r, self.a), tf.less(r, self.b))
         # In order to avoid evaluation of the exponential function outside
@@ -107,7 +105,6 @@ class OffsetLayer(tf.keras.layers.Layer):
             initializer=tf.zeros_initializer(),
         )
 
-    @tf.function
     def call(self, inp):
         return self.offset * tf.ones_like(inp)
 
@@ -127,7 +124,6 @@ class InputNormalizationAndShift(tf.keras.layers.Layer):
             initializer=tf.constant_initializer(r0),
         )
 
-    @tf.function
     def call(self, r):
         return r / self.r0 - 1.0
 
@@ -140,11 +136,6 @@ class PairInteraction(tf.keras.layers.Layer):
         self.pair_interaction = pair_interaction
         self.cutoff_function = cutoff_function
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
         return self.pair_interaction(r) * self.cutoff_function(r)
 
@@ -156,11 +147,6 @@ class NormalizedPairInteraction(PairInteraction):
         super().__init__(**kwargs)
         self.input_normalization = input_normalization
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
         return self.pair_interaction(
             self.input_normalization(r)
@@ -170,13 +156,7 @@ class NormalizedPairInteraction(PairInteraction):
 class CubicSpline(tf.keras.layers.Layer):
     """Base class that only defines the call functionality"""
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         delta_r = self.nodes[tf.newaxis, :] - r
         return tf.reduce_sum(
             tf.where(
@@ -198,7 +178,8 @@ class BaseCubicSpline(tf.keras.layers.Layer):
         """
         super().__init__(**kwargs)
         assert (x[1:] - x[:-1] > 0.0).all()
-        assert len(x) == len(y)
+        if y is not None:
+            assert len(x) == len(y)
         # NOTE: To make the x trainable we would need to also enforce their ordering somehow
         self.x = self.add_weight(
             shape=x.shape,
@@ -232,11 +213,6 @@ class BaseCubicSpline(tf.keras.layers.Layer):
 
         return M
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, x_new):
         """
         Evaluate the spline values at r points using the coefficients.
@@ -355,11 +331,6 @@ class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
 
         return tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, x_new):
         """
         Evaluate the spline values at x_new using the coefficients.
@@ -478,11 +449,6 @@ class NaturalQuinticSpline(tf.keras.layers.Layer):
 
         return tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, x_new):
         """
         Evaluate the spline values at x_new using the coefficients.
@@ -587,13 +553,7 @@ class FittedQuinticSpline(tf.keras.layers.Layer):
             if ddy is None
             else tf.constant_initializer(ddy),
         )
-        self.h = self.x[1:] - self.x[:-1]
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, x_new):
         """
         Evaluate the spline values at x_new using the coefficients.
@@ -607,7 +567,7 @@ class FittedQuinticSpline(tf.keras.layers.Layer):
         idx = tf.clip_by_value(idx, 0, len(self.x) - 2)
 
         # Get corresponding h values for each x_new
-        h = tf.gather(self.h, idx)
+        h = tf.gather(self.x[1:] - self.x[:-1], idx)
 
         # Compute spline components
         t = (x_new - tf.gather(self.x, idx)) / h
@@ -761,13 +721,7 @@ class BornMayer(PairPhiScaledShiftedInput):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         return 2 * self.A * tf.exp(-self.p * r_normalized)
 
 
@@ -787,13 +741,7 @@ class SuttonChenPhi(PairPhi):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         return (self.c / r) ** self.n
 
 
@@ -828,13 +776,7 @@ class DoubleSuttonChenPhi(PairPhi):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         return (self.c_1 / r) ** self.n_1 + (self.c_2 / r) ** self.n_2
 
 
@@ -863,13 +805,7 @@ class FinnisSinclairPhi(PairPhi):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         return tf.where(
             r <= self.c,
             (r - self.c) ** 2 * (self.c0 + self.c1 * r + self.c2 * r**2),
@@ -905,7 +841,6 @@ class MorsePhi(PairPhiScaledShiftedInput):
         )
 
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         return self.D * (
             tf.exp(-2 * self.a * r_normalized) - 2 * tf.exp(-self.a * r_normalized)
         )
@@ -928,13 +863,7 @@ class DoubleExpPhi(PairPhiScaledShiftedInput):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         return self.A_1 * tf.exp(-self.p_1 * r_normalized) + self.A_2 * tf.exp(
             -self.p_2 * r_normalized
         )
@@ -1011,13 +940,7 @@ class ExpRho(PairRhoScaledShiftedInput):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         return self.xi**2 * tf.exp(-2 * self.q * r_normalized)
 
 
@@ -1037,13 +960,7 @@ class SuttonChenRho(PairRho):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         return (self.a / r) ** self.m
 
 
@@ -1078,13 +995,7 @@ class DoubleSuttonChenRho(PairRho):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         return (self.a_1 / r) ** self.m_1 + (self.a_2 / r) ** self.m_2
 
 
@@ -1113,13 +1024,7 @@ class FinnisSinclairRho(PairRho):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r = (None, 1)
         return tf.where(
             r <= self.d,
             self.A * ((r - self.d) ** 2 + self.beta * (r - self.d) ** 3 / self.d),
@@ -1225,13 +1130,7 @@ class DoubleExpRho(PairRhoScaledShiftedInput):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         return self.xi_1**2 * tf.exp(
             -2 * self.q_1 * r_normalized
         ) + self.xi_2**2 * tf.exp(-2 * self.q_2 * r_normalized)
@@ -1252,13 +1151,7 @@ class VoterRho(PairRho):
         )
         self._supports_ragged_inputs = True
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r):
-        # r.shape = (None, 1)
         return (
             self.xi**2
             * r**6
@@ -1281,13 +1174,7 @@ class NNRho(PairRhoScaledShiftedInput):
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         nn_results = self.dense_layers[0](tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -1309,13 +1196,7 @@ class NNRhoExp(PairRhoScaledShiftedInput):
         # Last layer is linear
         self.dense_layers.append(tf.keras.layers.Dense(1))
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, r_normalized):
-        # r_normalized.shape = (None, 1)
         nn_results = self.dense_layers[0](tf.expand_dims(r_normalized, axis=-1))
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -1326,13 +1207,7 @@ class SqrtEmbedding(tf.keras.layers.Layer):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho)
 
 
@@ -1367,13 +1242,7 @@ class JohnsonEmbedding(tf.keras.layers.Layer):
             trainable=power_law_trainable,
         )
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         return (
             -self.F0 * (1 - self.eta * tf.math.log(rho)) * rho**self.eta
             - self.F1 * rho**self.zeta
@@ -1390,13 +1259,7 @@ class ExtendedEmbedding(tf.keras.layers.Layer):
             shape=(1), name="c1", initializer=tf.constant_initializer(0.001)
         )
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho) * (self.c0 + self.c1 * rho)
 
 
@@ -1410,13 +1273,7 @@ class ExtendedEmbeddingV2(tf.keras.layers.Layer):
             shape=(1), name="c1", initializer=tf.constant_initializer(0.05)
         )
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         return -self.c0 * tf.math.sqrt(rho) - self.c1 * rho
 
 
@@ -1433,13 +1290,7 @@ class ExtendedEmbeddingV3(tf.keras.layers.Layer):
             shape=(1), name="c2", initializer=tf.constant_initializer(0.05)
         )
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho) * (self.c0 + self.c1 * tf.tanh(self.c2 * rho))
 
 
@@ -1453,13 +1304,7 @@ class ExtendedEmbeddingV4(tf.keras.layers.Layer):
             shape=(1), name="c1", initializer=tf.constant_initializer(0.05)
         )
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         return -tf.math.sqrt(rho) * (self.c0 + (1 - self.c0) * tf.tanh(self.c1 * rho))
 
 
@@ -1484,13 +1329,7 @@ class NNSqrtEmbedding(tf.keras.layers.Layer):
             )
         )
 
-    @tf.function(
-        input_signature=(
-            tf.TensorSpec(shape=(None, 1), dtype=tf.keras.backend.floatx()),
-        )
-    )
     def call(self, rho):
-        # rho.shape = (None, 1)
         nn_results = self.dense_layers[0](rho)
         for layer in self.dense_layers[1:]:
             nn_results = layer(nn_results)
@@ -1518,7 +1357,6 @@ class AtomicNeuralNetwork(tf.keras.layers.Layer):
         else:
             self.dense_layers.append(tf.keras.layers.Dense(1, use_bias=False))
 
-    @tf.function
     def call(self, Gs):
         # Gs.shape = (None, num_Gs)
         nn_results = self.dense_layers[0](Gs)
@@ -1538,7 +1376,6 @@ class MinMaxDescriptorNorm(tf.keras.layers.Layer):
         self.Gs_min = Gs_min
         self.Gs_max = Gs_max
 
-    @tf.function
     def call(self, Gs):
         # Gs.shape = (None, num_Gs)
         return (Gs - self.Gs_min) / (self.Gs_max - self.Gs_min) - 1
