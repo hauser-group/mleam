@@ -66,23 +66,27 @@ def distances_and_pair_types(xyz, types, n_types, cutoff=10.0):
 
 @tf.function
 def distances_and_pair_types_no_grad(xyz, types, n_types, cutoff=10.0):
-    n = tf.shape(xyz, out_type=tf.int64)[0]
     r_vec = tf.expand_dims(xyz, 0) - tf.expand_dims(xyz, 1)
-    distances = tf.sqrt(tf.reduce_sum(r_vec**2, axis=-1, keepdims=True))
+    distances = tf.sqrt(
+        tf.reduce_sum(r_vec**2, axis=-1, keepdims=True, name="sum_distances"),
+        name="distance_computation",
+    )
     mask = tf.logical_and(
-        tf.logical_not(tf.eye(n, dtype=tf.bool)),
-        tf.less_equal(distances[:, :, 0], cutoff),
+        tf.less_equal(distances[:, :, 0], cutoff, name="mask_max_cutoff"),
+        tf.greater(distances[:, :, 0], 0.0),
     )
 
     min_ij = tf.math.minimum(types[:, tf.newaxis], types[tf.newaxis, :])
+    # TODO: is the second line really needed here? Should be generalized to
+    # asymmetric functions anyway
     pair_types = (
         n_types * min_ij
         - (min_ij * (min_ij - 1)) // 2
         + tf.abs(tf.subtract(types[:, tf.newaxis], types[tf.newaxis, :]))
     )
 
-    distances = tf.ragged.boolean_mask(distances, mask)
-    pair_types = tf.ragged.boolean_mask(pair_types, mask)
+    distances = tf.ragged.boolean_mask(distances, mask, name="ragged_mask_distances")
+    pair_types = tf.ragged.boolean_mask(pair_types, mask, name="ragged_mask_pair_types")
     return distances, pair_types
 
 
@@ -199,7 +203,7 @@ def opt_fun_factory(
     shapes = tf.shape_n(model.trainable_variables)
     n_tensors = len(shapes)
 
-    # we'll use tf.dynamic_stitch and tf.dynamic_partition later, so we need to
+    # we will use tf.dynamic_stitch and tf.dynamic_partition later, so we need to
     # prepare required information first
     count = 0
     idx = []  # stitch indices
@@ -321,7 +325,7 @@ def pretrain_rho(
             normalized_input, pair_potential, cutoff_function
         )
         nn_rhos[pair_type] = model.layers[
-            [l.name for l in model.layers].index("%s-rho" % pair_type)
+            [layer.name for layer in model.layers].index("%s-rho" % pair_type)
         ]
 
     @tf.function
