@@ -155,12 +155,15 @@ def preprocessed_dummy_dataset(
         ),
         dtype=floatx,
     )
-    pair_types = [
-        types_n[i] + types_n[j]
-        for n, types_n in zip(N_atoms, types)
-        for i in range(n)
-        for j in range(n - 1)
-    ]
+    pair_types = tf.expand_dims(
+        [
+            types_n[i] + types_n[j]
+            for n, types_n in zip(N_atoms, types)
+            for i in range(n)
+            for j in range(n - 1)
+        ],
+        axis=-1,
+    )
 
     input_dict = {
         "types": tf.RaggedTensor.from_row_splits(

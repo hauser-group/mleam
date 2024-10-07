@@ -7,6 +7,7 @@ from mleam.data_prep import (
     dataset_from_json,
     preprocessed_dataset_from_json,
     descriptor_dataset_from_json,
+    preprocessed_dummy_dataset,
 )
 from utils import rotation_matrix, derive_array_wrt_array
 from itertools import product
@@ -105,7 +106,8 @@ def test_derivative(xyzs, types, atol=1e-5):
 
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
-def test_preprocessed_dataset_from_json(resource_path_root, floatx):
+@pytest.mark.parametrize("forces", [True, False])
+def test_preprocessed_dataset_from_json(resource_path_root, floatx, forces):
     type_dict = {"Ni": 0, "Pt": 1}
     dataset = preprocessed_dataset_from_json(
         resource_path_root / "test_data.json",
@@ -113,21 +115,28 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx):
         batch_size=4,
         floatx=floatx,
         cutoff=5.0,
+        forces=forces,
     )
     inputs, outputs = next(iter(dataset))
+
+    assert inputs["types"].ragged_rank == 1
     assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
     assert inputs["types"].dtype == tf.int32
 
-    # NOTE: because of the cutoff we supplied this is not the "expected" (4, 38, 33, 1)
+    # NOTE: because of the cutoff we supplied this is not the "expected" (4, 38, 37, 1)
     # but instead is smaller to optimize the throughput.
+    assert inputs["pair_types"].ragged_rank == 2
     assert tuple(inputs["pair_types"].bounding_shape().numpy()) == (4, 38, 33, 1)
     assert inputs["pair_types"].dtype == tf.int32
 
+    assert inputs["distances"].ragged_rank == 2
     assert tuple(inputs["distances"].bounding_shape().numpy()) == (4, 38, 33, 1)
     assert inputs["distances"].dtype == floatx
 
-    assert tuple(inputs["dr_dx"].bounding_shape().numpy()) == (4, 38, 33, 38, 3)
-    assert inputs["dr_dx"].dtype == floatx
+    if forces:
+        assert inputs["dr_dx"].ragged_rank == 3
+        assert tuple(inputs["dr_dx"].bounding_shape().numpy()) == (4, 38, 33, 38, 3)
+        assert inputs["dr_dx"].dtype == floatx
 
     assert outputs["energy"].shape == (4, 1)
     assert outputs["energy"].dtype == floatx
@@ -135,8 +144,173 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx):
     assert outputs["energy_per_atom"].shape == (4, 1)
     assert outputs["energy_per_atom"].dtype == floatx
 
-    assert tuple(outputs["forces"].bounding_shape()) == (4, 38, 3)
-    assert outputs["forces"].dtype == floatx
+    if forces:
+        assert tuple(outputs["forces"].bounding_shape()) == (4, 38, 3)
+        assert outputs["forces"].dtype == floatx
+
+
+@pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
+@pytest.mark.parametrize("forces", [False, True])
+def test_preprocessed_dummy_dataset(resource_path_root, floatx, forces):
+    batch_size = 4
+    dataset = preprocessed_dummy_dataset(
+        batch_size=batch_size,
+        num_batches=2,
+        floatx=floatx,
+        forces=forces,
+        sizes=[4, 5, 6],
+        rng=np.random.default_rng(0),
+    )
+    inputs, outputs = next(iter(dataset))
+
+    row_splits_0 = [0, 6, 11, 16, 20]
+    row_splits_1 = [
+        0,
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        34,
+        38,
+        42,
+        46,
+        50,
+        54,
+        58,
+        62,
+        66,
+        70,
+        73,
+        76,
+        79,
+        82,
+    ]
+    row_splits_2 = [
+        0,
+        6,
+        12,
+        18,
+        24,
+        30,
+        36,
+        42,
+        48,
+        54,
+        60,
+        66,
+        72,
+        78,
+        84,
+        90,
+        96,
+        102,
+        108,
+        114,
+        120,
+        126,
+        132,
+        138,
+        144,
+        150,
+        156,
+        162,
+        168,
+        174,
+        180,
+        185,
+        190,
+        195,
+        200,
+        205,
+        210,
+        215,
+        220,
+        225,
+        230,
+        235,
+        240,
+        245,
+        250,
+        255,
+        260,
+        265,
+        270,
+        275,
+        280,
+        285,
+        290,
+        295,
+        300,
+        305,
+        310,
+        315,
+        320,
+        325,
+        330,
+        335,
+        340,
+        345,
+        350,
+        355,
+        360,
+        365,
+        370,
+        375,
+        380,
+        384,
+        388,
+        392,
+        396,
+        400,
+        404,
+        408,
+        412,
+        416,
+        420,
+        424,
+        428,
+    ]
+    row_splits = [row_splits_0, row_splits_1, row_splits_2]
+
+    assert inputs["types"].ragged_rank == 1
+    assert inputs["types"].shape == (batch_size, None, 1)
+    assert inputs["types"].dtype == tf.int32
+    for trial, ref in zip(inputs["types"].nested_row_splits, row_splits):
+        np.testing.assert_array_equal(trial, ref)
+
+    assert inputs["pair_types"].ragged_rank == 2
+    assert inputs["pair_types"].shape == (batch_size, None, None, 1)
+    assert inputs["pair_types"].dtype == tf.int32
+    for trial, ref in zip(inputs["pair_types"].nested_row_splits, row_splits):
+        np.testing.assert_array_equal(trial, ref)
+
+    assert inputs["distances"].ragged_rank == 2
+    assert inputs["distances"].shape == (batch_size, None, None, 1)
+    assert inputs["distances"].dtype == floatx
+    for trial, ref in zip(inputs["distances"].nested_row_splits, row_splits):
+        np.testing.assert_array_equal(trial, ref)
+
+    if forces:
+        assert inputs["dr_dx"].ragged_rank == 3
+        assert inputs["dr_dx"].shape == (batch_size, None, None, None, 3)
+        assert inputs["dr_dx"].dtype == floatx
+        for trial, ref in zip(inputs["dr_dx"].nested_row_splits, row_splits):
+            np.testing.assert_array_equal(trial, ref)
+
+    assert outputs["energy"].shape == (batch_size, 1)
+    assert outputs["energy"].dtype == floatx
+
+    assert outputs["energy_per_atom"].shape == (batch_size, 1)
+    assert outputs["energy_per_atom"].dtype == floatx
+
+    if forces:
+        assert outputs["forces"].ragged_rank == 1
+        assert outputs["forces"].shape == (batch_size, None, 3)
+        assert outputs["forces"].dtype == floatx
+        for trial, ref in zip(outputs["forces"].nested_row_splits, row_splits):
+            np.testing.assert_array_equal(trial, ref)
 
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
