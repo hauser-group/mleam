@@ -4,12 +4,11 @@ __pycache__/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-notebooks/
-training/
-training_no_offset/
-training_reweighted/
-training_adam/
 
 # Saved test models
 test/*.h5
 test/tmp.eam.fs
+
+# Models and logs
+scripts_and_notebooks/logs/
+scripts_and_notebooks/saved_models/
