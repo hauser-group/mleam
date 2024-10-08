@@ -33,7 +33,7 @@ from mleam.layers import (
     ExtendedEmbeddingV4,
     NNSqrtEmbedding,
 )
-from mleam.utils import distances_and_pair_types
+from mleam.preprocessing import distances_and_pair_types
 from mleam.constants import InputNormType
 import warnings
 
