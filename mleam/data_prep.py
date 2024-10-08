@@ -1,21 +1,48 @@
 import tensorflow as tf
 import numpy as np
 import json
-from mleam.utils import distances_and_pair_types, distances_and_pair_types_no_grad
+from mleam.preprocessing import (
+    distances_and_pair_types,
+    distances_and_pair_types_no_grad,
+)
 
 
 def _output_dataset_from_json(data, forces=False, floatx=tf.float32):
-    energy = tf.expand_dims(tf.constant(data["e_dft_bond"], dtype=floatx), axis=-1)
-    N = tf.constant([[len(sym)] for sym in data["symbols"]], dtype=floatx)
-    energy_per_atom = energy / N
-    output_dict = {"energy": energy, "energy_per_atom": energy_per_atom}
+    output_types = {"energy": floatx, "energy_per_atom": floatx}
+    output_shapes = {
+        "energy": tf.TensorShape([1]),
+        "energy_per_atom": tf.TensorShape([1]),
+    }
     if forces:
-        output_dict["forces"] = tf.ragged.constant(
-            data["forces_dft"],
-            ragged_rank=1,
-            dtype=floatx,
-        )
-    return tf.data.Dataset.from_tensor_slices(output_dict)
+
+        def generator():
+            for e, sym, force in zip(
+                data["e_dft_bond"], data["symbols"], data["forces_dft"]
+            ):
+                energy = tf.expand_dims(tf.constant(e, dtype=floatx), axis=-1)
+                N = len(sym)
+                energy_per_atom = energy / N
+                yield {
+                    "energy": energy,
+                    "energy_per_atom": energy_per_atom,
+                    "forces": tf.constant(force, dtype=floatx),
+                }
+
+        output_types["forces"] = floatx
+        output_shapes["forces"] = tf.TensorShape([None, 3])
+    else:
+
+        def generator():
+            for e, sym in zip(data["e_dft_bond"], data["symbols"]):
+                energy = tf.expand_dims(tf.constant(e, dtype=floatx), axis=-1)
+                N = len(sym)
+                energy_per_atom = energy / N
+                yield {
+                    "energy": energy,
+                    "energy_per_atom": energy_per_atom,
+                }
+
+    return tf.data.Dataset.from_generator(generator, output_types, output_shapes)
 
 
 def dataset_from_json(
@@ -70,12 +97,28 @@ def preprocessed_dataset_from_json(
     if batch_size is None:
         batch_size = len(data["symbols"])
 
+    input_types = {"types": tf.int32, "positions": floatx}
+    input_shapes = {
+        "types": tf.TensorShape([None, 1]),
+        "positions": tf.TensorShape([None, 3]),
+    }
+
+    def generator():
+        for symbols, positions in zip(data["symbols"], data["positions"]):
+            types = tf.expand_dims(
+                tf.constant([type_dict[t] for t in symbols], dtype=tf.int32), axis=-1
+            )
+            positions = tf.constant(positions, dtype=floatx)
+            yield {"types": types, "positions": positions}
+
+    input_dataset = tf.data.Dataset.from_generator(generator, input_types, input_shapes)
+
     if forces:
 
         @tf.function
         def input_transform(inp):
             r, pair_types, dr_dx = distances_and_pair_types(
-                inp["positions"], inp["types"], len(type_dict), cutoff=cutoff
+                inp["positions"], inp["types"], len(type_dict), cutoff
             )
             return dict(
                 types=inp["types"],
@@ -88,32 +131,13 @@ def preprocessed_dataset_from_json(
         @tf.function
         def input_transform(inp):
             r, pair_types = distances_and_pair_types_no_grad(
-                inp["positions"], inp["types"], len(type_dict), cutoff=cutoff
+                inp["positions"], inp["types"], len(type_dict), cutoff
             )
             return dict(
                 types=inp["types"],
                 pair_types=pair_types,
                 distances=r,
             )
-
-    input_dataset = tf.data.Dataset.from_tensor_slices(
-        {
-            "types": tf.expand_dims(
-                tf.ragged.constant(
-                    [[type_dict[t] for t in syms] for syms in data["symbols"]],
-                    ragged_rank=1,
-                    name="atom_types_to_ragged",
-                ),
-                axis=-1,
-            ),
-            "positions": tf.ragged.constant(
-                data["positions"],
-                ragged_rank=1,
-                dtype=floatx,
-                name="positions_to_ragged",
-            ),
-        }
-    )
 
     input_dataset = input_dataset.map(
         input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE
@@ -122,8 +146,9 @@ def preprocessed_dataset_from_json(
     output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    dataset = dataset.ragged_batch(batch_size=batch_size, name="ragged_batching")
+    dataset = dataset.ragged_batch(batch_size=batch_size, name="batching")
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+
     return dataset
 
 
