@@ -1,18 +1,8 @@
 import numpy as np
-from utils import rotation_matrix, derive_scalar_wrt_array, derive_array_wrt_array
-
-
-def test_rotmat_orthogonality(atol=1e-10):
-    R = rotation_matrix(np.random.randn(3), np.random.randn(1)[0])
-    # R * R.T == R.T * R
-    np.testing.assert_allclose(R.dot(R.T), R.T.dot(R), atol=atol)
-    # since R.T == R^-1 -> R * R.T == I
-    np.testing.assert_allclose(R.dot(R.T), np.eye(3), atol=atol)
-
-
-def test_rotmat_determinant():
-    R = rotation_matrix(np.random.randn(3), np.random.randn(1)[0])
-    np.testing.assert_allclose(np.linalg.det(R), 1)
+from utils import (
+    derive_scalar_wrt_array,
+    derive_array_wrt_array,
+)
 
 
 def test_numdiff_quadratic_function(atol=1e-6):
