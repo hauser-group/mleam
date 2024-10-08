@@ -224,7 +224,7 @@ class BaseCubicSpline(tf.keras.layers.Layer):
         idx = tf.searchsorted(self.x, x_new) - 1
         # To enable extrapolation use the edge polynomials whenever
         # the index is < 0 or > n - 1.
-        idx = tf.clip_by_value(idx, 0, len(self.x) - 2)
+        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
 
         # Get corresponding h values for each x_new
         h = tf.gather(self.h, idx)
@@ -342,7 +342,7 @@ class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
         idx = tf.searchsorted(self.x, x_new) - 1
         # To enable extrapolation use the edge polynomials whenever
         # the index is < 0 or > n - 1.
-        idx = tf.clip_by_value(idx, 0, len(self.x) - 2)
+        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
 
         # Get corresponding h values for each x_new
         h = tf.gather(self.h, idx)
@@ -460,7 +460,7 @@ class NaturalQuinticSpline(tf.keras.layers.Layer):
         idx = tf.searchsorted(self.x, x_new) - 1
         # To enable extrapolation use the edge polynomials whenever
         # the index is < 0 or > n - 1.
-        idx = tf.clip_by_value(idx, 0, len(self.x) - 2)
+        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
 
         # Get corresponding h values for each x_new
         h = tf.gather(self.h, idx)
@@ -564,7 +564,7 @@ class FittedQuinticSpline(tf.keras.layers.Layer):
         idx = tf.searchsorted(self.x, x_new) - 1
         # To enable extrapolation use the edge polynomials whenever
         # the index is < 0 or > n - 1.
-        idx = tf.clip_by_value(idx, 0, len(self.x) - 2)
+        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
 
         # Get corresponding h values for each x_new
         h = tf.gather(self.x[1:] - self.x[:-1], idx)
