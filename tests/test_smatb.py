@@ -257,3 +257,37 @@ def test_load_smatb_model(resource_path_root):
         e_ref["Pt"],
         atol=1e-5,
     )
+
+
+@pytest.mark.parametrize("forces", [False, True])
+def test_smatb_dense_input(forces):
+    N_atoms = [2, 4, 3]
+    batch_size = len(N_atoms)
+    pad_size = np.max(N_atoms)
+    # Random input
+    rng = np.random.default_rng(0)
+    types = np.zeros([batch_size, pad_size, 1], dtype=np.int32)
+    pair_types = np.zeros([batch_size, pad_size, pad_size, 1], dtype=np.int32)
+    distances = np.zeros([batch_size, pad_size, pad_size, 1])
+    dr_dx = np.zeros([batch_size, pad_size, pad_size, pad_size, 3])
+
+    for i, ni in enumerate(N_atoms):
+        xyzs = rng.normal(size=(ni, 3))
+        distances[i, :ni, :ni, 0] = np.sqrt(
+            np.sum((xyzs[np.newaxis, :] - xyzs[:, np.newaxis]) ** 2, axis=-1)
+        )
+        types[i, :ni, 0] = rng.choice([0, 1], ni)
+
+    inputs = {"types": types, "pair_types": pair_types, "distances": distances}
+    if forces:
+        inputs["dr_dx"] = dr_dx
+
+    model = SMATB(
+        ["Ni", "Pt"],
+        params={},
+        build_forces=forces,
+        preprocessed_input=True,
+        method="dense_where",
+    )
+    outputs = model(inputs)
+    print(outputs)
