@@ -19,7 +19,7 @@ classifiers = [
 
 dependencies = [
   "numpy<2.0.0",
-  "tensorflow<=2.14",  # Unfortunately newer versions changed support for ragged tensors
+  "tensorflow<2.16",  # Unfortunately newer versions changed support for ragged tensors
   "atsim.potentials",
 ]
 
