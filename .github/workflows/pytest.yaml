@@ -22,6 +22,9 @@ jobs:
     - name: Run tests
       run: |
         pytest --cov=mleam --cov-report=xml
+    - name: Run doctest
+      run: |
+        pytest --doctest-modules mleam
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4.0.1
       with:
