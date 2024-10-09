@@ -246,11 +246,18 @@ class EAMPotential(tf.keras.Model):
             energy = self.body_gather_scatter(types, distances, pair_types)
         elif self.method == "where":
             energy = self.body_where(types, distances, pair_types)
+        elif self.method == "dense_where":
+            energy = self.body_dense_where(types, distances, pair_types)
         else:
             raise NotImplementedError("Unknown method %s" % self.method)
-        number_of_atoms = tf.cast(
-            types.row_lengths(), energy.dtype, name="number_of_atoms"
-        )
+        if isinstance(types, tf.RaggedTensor):
+            number_of_atoms = tf.cast(
+                types.row_lengths(), energy.dtype, name="number_of_atoms"
+            )
+        else:
+            number_of_atoms = tf.cast(
+                tf.math.count_nonzero(types >= 0), energy.dtype, name="number_of_atoms"
+            )
         energy_per_atom = tf.divide(
             energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
         )
@@ -270,11 +277,18 @@ class EAMPotential(tf.keras.Model):
                 energy = self.body_gather_scatter(types, distances, pair_types)
             elif self.method == "where":
                 energy = self.body_where(types, distances, pair_types)
+            elif self.method == "dense_where":
+                energy = self.body_dense_where(types, distances, pair_types)
             else:
                 raise NotImplementedError("Unknown method %s" % self.method)
-        number_of_atoms = tf.cast(
-            types.row_lengths(), energy.dtype, name="number_of_atoms"
-        )
+        if isinstance(types, tf.RaggedTensor):
+            number_of_atoms = tf.cast(
+                types.row_lengths(), energy.dtype, name="number_of_atoms"
+            )
+        else:
+            number_of_atoms = tf.cast(
+                tf.math.count_nonzero(types >= 0), energy.dtype, name="number_of_atoms"
+            )
         energy_per_atom = tf.divide(
             energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
         )
@@ -345,6 +359,47 @@ class EAMPotential(tf.keras.Model):
 
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
+
+    @tf.function
+    def body_dense_where(self, types, distances, pair_types):
+        """"""
+        rho = distances
+        phi = distances
+        for t in self.atom_pair_types:
+            cond = tf.equal(pair_types, self.pair_type_dict[t])
+            rho = tf.where(cond, self.pair_rho[t](rho), rho)
+            phi = tf.where(cond, self.pair_potentials[t](phi), phi)
+
+        # Sum over atoms j
+        sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho")
+        sum_phi = tf.reduce_sum(phi, axis=-2, name="sum_phi")
+
+        # Make sure that sum_rho is never exactly zero since this leads to
+        # problems in the gradient of the square root embedding function
+        embedding_energies = tf.math.maximum(sum_rho, 1e-30)
+        for t in self.atom_types:
+            cond = tf.equal(types, self.type_dict[t])
+            # tf.abs(x) necessary here since most embedding functions do not
+            # support negative inputs but embedding energies are typically
+            # negative and tf.where applies the function to every vector entry
+            embedding_energies = tf.where(
+                cond,
+                self.embedding_functions[t](tf.abs(embedding_energies))
+                + self.offsets[t](embedding_energies),
+                embedding_energies,
+            )
+        tf.print(-tf.sqrt(sum_rho))
+        tf.print(embedding_energies)
+        atomic_energies = 0.5 * sum_phi + embedding_energies
+
+        # Sum over atoms i
+        return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
+
+    def _custom_ragged_sum(self, a, name=None):
+        return tf.RaggedTensor.from_row_splits(
+            tf.math.segment_sum(a.flat_values, a.nested_value_rowids()[1], name=name),
+            a.row_splits,
+        )
 
     @tf.function
     def body_partition_stitch(self, types, distances, pair_types):
