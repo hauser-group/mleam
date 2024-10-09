@@ -26,7 +26,6 @@ from mleam.models import (
     CommonExtendedEmbeddingV4Model,
     CommonExtendedEmbeddingV4RhoTwoExpModel,
 )
-from utils import derive_scalar_wrt_array
 import numdifftools as nd
 
 models_test_decorator = pytest.mark.parametrize(
@@ -177,7 +176,7 @@ class ModelTest:
                 atol=1e-6,
             )
 
-        def test_derivative(self, atol=5e-2):
+        def test_derivative(self, atol=1e-2):
             """Test analytical derivative vs numerical using a float32 model.
             A cruicial problem is the low numerical accuracy of float32
             which sometimes leads to failing tests. The fix for now
@@ -203,15 +202,13 @@ class ModelTest:
             forces = model({"positions": xyzs, "types": types})["forces"]
 
             def fun(x):
-                """Model puts out energy_per_atom, which has to be multiplied
-                by N to get the total energy"""
-                xyzs = tf.RaggedTensor.from_tensor(x, lengths=[N])
-                return N * model({"positions": xyzs, "types": types})["energy_per_atom"]
+                # numdifftools flattens the vector x so it needs to be reshaped here
+                xyzs = tf.RaggedTensor.from_tensor(x.reshape(1, N, 3), lengths=[N])
+                # numdifftools expects a scalar function:
+                return model({"positions": xyzs, "types": types})["energy"][0, 0]
 
             # Force is the negative gradient
-            num_forces = -derive_scalar_wrt_array(
-                fun, xyzs.to_tensor().numpy(), dx=1e-2
-            )
+            num_forces = -nd.Gradient(fun)(xyzs.to_tensor().numpy()).reshape(1, N, 3)
 
             np.testing.assert_allclose(
                 forces.to_tensor().numpy(), num_forces, atol=atol
@@ -244,16 +241,15 @@ class ModelTest:
                 forces = model({"positions": xyzs, "types": types})["forces"]
 
                 def fun(x):
-                    """Model puts out energy_per_atom, which has to be
-                    multiplied by N to get the total energy"""
-                    xyzs = tf.RaggedTensor.from_tensor(x, lengths=[N])
-                    return (
-                        N
-                        * model({"positions": xyzs, "types": types})["energy_per_atom"]
-                    )
+                    # numdifftools flattens the vector x so it needs to be reshaped here
+                    xyzs = tf.RaggedTensor.from_tensor(x.reshape(1, N, 3), lengths=[N])
+                    # numdifftools expects a scalar function:
+                    return model({"positions": xyzs, "types": types})["energy"][0, 0]
 
                 # Force is the negative gradient
-                num_forces = -derive_scalar_wrt_array(fun, xyzs.to_tensor().numpy())
+                num_forces = -nd.Gradient(fun)(xyzs.to_tensor().numpy()).reshape(
+                    1, N, 3
+                )
 
                 np.testing.assert_allclose(
                     forces.to_tensor().numpy(), num_forces, atol=atol
