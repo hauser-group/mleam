@@ -69,6 +69,7 @@ def get_distance_matrix(xyzs, diagonal=0.0):
         tf.reduce_sum(r_vec**2, axis=-1, name="sum_distances"),
         name="distance_computation",
     )
+    # TODO: can this be solved more elegantly? I.e., without checking for raggedness
     if isinstance(xyzs, tf.RaggedTensor):
         diagonals = tf.ragged.stack(
             [diagonal * tf.eye(n, dtype=xyzs.dtype) for n in xyzs.row_lengths()]
@@ -110,19 +111,7 @@ def get_distance_matrix_and_derivative(xyzs, diagonal=0.0):
     TensorShape([2, 2, 2, 3])
     """
     r_vec = tf.expand_dims(xyzs, -3) - tf.expand_dims(xyzs, -2)
-    distances = tf.sqrt(tf.reduce_sum(r_vec**2, axis=-1))
-    if isinstance(xyzs, tf.RaggedTensor):
-        diagonals = tf.ragged.stack(
-            [diagonal * tf.eye(n, dtype=xyzs.dtype) for n in xyzs.row_lengths()]
-        )
-    else:
-        diagonals = diagonal * tf.eye(
-            tf.shape(xyzs)[-2], dtype=xyzs.dtype, batch_shape=tf.shape(xyzs)[:-2]
-        )
-    distances = tf.expand_dims(
-        distances + diagonals,
-        axis=-1,
-    )
+    distances = get_distance_matrix(xyzs, diagonal=diagonal)
     derivative = tf.math.divide_no_nan(r_vec, distances)
 
     return distances, derivative
