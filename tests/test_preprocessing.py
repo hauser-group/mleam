@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation
 
 @pytest.fixture
 def xyzs():
-    # 3 and 4 to result in Pythagorean triples
+    # 3.0 and 4.0 to result in Pythagorean triples
     return tf.constant([[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 3.0, 4.0]])
 
 
@@ -25,21 +25,10 @@ def types():
 
 @pytest.fixture
 def batched_xyzs():
-    # 3 and 4 to result in Pythagorean triples
     return tf.constant(
         [
-            [
-                [0, 0, 0],
-                [3.0, 0, 0],
-                [0, 4.0, 0],
-                [0, 3.0, 4.0],
-            ],
-            [
-                [0, 0, 0],
-                [3.0, 0, 0],
-                [0, 4.0, 0],
-                [0, 4.0, 3.0],
-            ],
+            [[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 3.0, 4.0]],
+            [[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 4.0, 3.0]],
         ],
     )
 
@@ -51,7 +40,6 @@ def batched_types():
 
 @pytest.fixture
 def ragged_xyzs():
-    # 3 and 4 to result in Pythagorean triples
     return tf.ragged.constant(
         [
             [[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 3.0, 4.0]],
@@ -90,32 +78,38 @@ def test_distance_matrix(xyzs, atol=1e-6):
 def test_batched_distance_matrix(batched_xyzs, atol=1e-6):
     r = get_distance_matrix(batched_xyzs, 8.1)
 
+    assert r.shape == (2, 4, 4, 1)
+
     np.testing.assert_allclose(
-        r[0, :, :, 0].numpy(),
-        np.array(
-            [
-                [8.1, 3.0, 4.0, 5.0],
-                [3.0, 8.1, 5.0, np.sqrt(34)],
-                [4.0, 5.0, 8.1, np.sqrt(17)],
-                [5.0, np.sqrt(34), np.sqrt(17), 8.1],
-            ]
-        ),
-    )
-    np.testing.assert_allclose(
-        r[1, :, :, 0].numpy(),
-        np.array(
-            [
-                [8.1, 3.0, 4.0, 5.0],
-                [3.0, 8.1, 5.0, np.sqrt(34)],
-                [4.0, 5.0, 8.1, 3.0],
-                [5.0, np.sqrt(34), 3.0, 8.1],
-            ]
+        r,
+        np.expand_dims(
+            np.array(
+                [
+                    [
+                        [8.1, 3.0, 4.0, 5.0],
+                        [3.0, 8.1, 5.0, np.sqrt(34)],
+                        [4.0, 5.0, 8.1, np.sqrt(17)],
+                        [5.0, np.sqrt(34), np.sqrt(17), 8.1],
+                    ],
+                    [
+                        [8.1, 3.0, 4.0, 5.0],
+                        [3.0, 8.1, 5.0, np.sqrt(34)],
+                        [4.0, 5.0, 8.1, 3.0],
+                        [5.0, np.sqrt(34), 3.0, 8.1],
+                    ],
+                ]
+            ),
+            axis=-1,
         ),
     )
 
 
 def test_ragged_batch_distance_matrix(ragged_xyzs, atol=1e-6):
     r = get_distance_matrix(ragged_xyzs, 8.1)
+
+    assert r.shape == (2, None, None, 1)
+    np.testing.assert_array_equal(r.nested_row_splits[0], [0, 4, 7])
+    np.testing.assert_array_equal(r.nested_row_splits[1], [0, 4, 8, 12, 16, 19, 22, 25])
 
     np.testing.assert_allclose(
         r[0, :, :, 0].numpy(),
@@ -163,8 +157,43 @@ def test_pair_types(types):
 def test_batched_pair_types(batched_types):
     pair_types = get_pair_types(batched_types, 2)
 
+    assert pair_types.shape == (2, 4, 4, 1)
+
     np.testing.assert_array_equal(
-        pair_types[0, :, :, 0],
+        pair_types,
+        np.expand_dims(
+            np.array(
+                [
+                    [
+                        [0, 0, 1, 1],
+                        [0, 0, 1, 1],
+                        [1, 1, 2, 2],
+                        [1, 1, 2, 2],
+                    ],
+                    [
+                        [0, 0, 0, 1],
+                        [0, 0, 0, 1],
+                        [0, 0, 0, 1],
+                        [1, 1, 1, 2],
+                    ],
+                ]
+            ),
+            axis=-1,
+        ),
+    )
+
+
+def test_ragged_pair_types(ragged_types):
+    pair_types = get_pair_types(ragged_types, 2)
+
+    assert pair_types.shape == (2, None, None, 1)
+    np.testing.assert_array_equal(pair_types.nested_row_splits[0], [0, 4, 7])
+    np.testing.assert_array_equal(
+        pair_types.nested_row_splits[1], [0, 4, 8, 12, 16, 19, 22, 25]
+    )
+
+    np.testing.assert_array_equal(
+        pair_types[0, :, :, 0].numpy(),
         np.array(
             [
                 [0, 0, 1, 1],
@@ -175,13 +204,12 @@ def test_batched_pair_types(batched_types):
         ),
     )
     np.testing.assert_array_equal(
-        pair_types[1, :, :, 0],
+        pair_types[1, :, :, 0].numpy(),
         np.array(
             [
-                [0, 0, 0, 1],
-                [0, 0, 0, 1],
-                [0, 0, 0, 1],
-                [1, 1, 1, 2],
+                [0, 0, 1],
+                [0, 0, 1],
+                [1, 1, 2],
             ]
         ),
     )

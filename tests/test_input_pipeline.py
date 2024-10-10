@@ -43,10 +43,10 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx, forces):
     assert inputs["distances"].shape == (4, None, None, 1)
 
     if forces:
-        assert inputs["dr_dx"].ragged_rank == 3
-        # assert tuple(inputs["dr_dx"].bounding_shape().numpy()) == (4, 38, 33, 38, 3)
+        assert inputs["dr_dx"].ragged_rank == 2
+        # assert tuple(inputs["dr_dx"].bounding_shape().numpy()) == (4, 38, 38, 3)
         assert inputs["dr_dx"].dtype == floatx
-        assert inputs["dr_dx"].shape == (4, None, None, None, 3)
+        assert inputs["dr_dx"].shape == (4, None, None, 3)
 
     assert outputs["energy"].shape == (4, 1)
     assert outputs["energy"].dtype == floatx

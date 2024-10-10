@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 
 
@@ -8,9 +9,8 @@ def distances_and_pair_types(xyzs, types, n_types, diagonal=0.0):
     return distances, pair_types, gradient
 
 
-def ragged_distances_and_pair_types(xyzs, types, n_types, cutoff=10.0):
+def ragged_distances_and_pair_types(xyzs, types, n_types, cutoff=np.inf):
     distances, pair_types, derivative = distances_and_pair_types(xyzs, types, n_types)
-    tf.print(distances.shape, pair_types.shape, derivative.shape)
     mask = tf.logical_and(
         tf.less_equal(distances[:, :, 0], cutoff, name="mask_max_cutoff"),
         tf.greater(distances[:, :, 0], 0.0),
@@ -24,11 +24,11 @@ def ragged_distances_and_pair_types(xyzs, types, n_types, cutoff=10.0):
 
 def distances_and_pair_types_no_grad(xyzs, types, n_types, diagonal=0.0):
     pair_types = get_pair_types(types, n_types)
-    distances = get_distance_matrix(xyzs)
+    distances = get_distance_matrix(xyzs, diagonal=diagonal)
     return distances, pair_types
 
 
-def ragged_distances_and_pair_types_no_grad(xyzs, types, n_types, cutoff=10.0):
+def ragged_distances_and_pair_types_no_grad(xyzs, types, n_types, cutoff=np.inf):
     distances, pair_types = distances_and_pair_types_no_grad(xyzs, types, n_types)
     mask = tf.logical_and(
         tf.less_equal(distances[:, :, 0], cutoff, name="mask_max_cutoff"),
@@ -66,21 +66,11 @@ def get_pair_types(types, n_types):
 def get_distance_matrix(xyzs, diagonal=0.0):
     r_vec = tf.expand_dims(xyzs, -3) - tf.expand_dims(xyzs, -2)
     distances = tf.sqrt(
-        tf.reduce_sum(r_vec**2, axis=-1, name="sum_distances"),
+        tf.reduce_sum(r_vec**2, axis=-1, keepdims=True, name="sum_distances"),
         name="distance_computation",
     )
-    # TODO: can this be solved more elegantly? I.e., without checking for raggedness
-    if isinstance(xyzs, tf.RaggedTensor):
-        diagonals = tf.ragged.stack(
-            [diagonal * tf.eye(n, dtype=xyzs.dtype) for n in xyzs.row_lengths()]
-        )
-    else:
-        diagonals = diagonal * tf.eye(
-            tf.shape(xyzs)[-2], dtype=xyzs.dtype, batch_shape=tf.shape(xyzs)[:-2]
-        )
-    distances = tf.expand_dims(
-        distances + diagonals,
-        axis=-1,
+    distances = tf.ragged.map_flat_values(
+        tf.where, distances == 0, diagonal * tf.ones_like(distances), distances
     )
     return distances
 
