@@ -33,7 +33,10 @@ from mleam.layers import (
     ExtendedEmbeddingV4,
     NNSqrtEmbedding,
 )
-from mleam.preprocessing import distances_and_pair_types
+from mleam.preprocessing import (
+    distances_and_pair_types,
+    distances_and_pair_types_no_grad,
+)
 from mleam.constants import InputNormType
 import warnings
 
@@ -75,9 +78,6 @@ class EAMPotential(tf.keras.Model):
                     - 'where' uses branchless programming can be significantly
                               faster as it is easier to parallelize
                     - 'gather_scatter' old implementation, no longer maintained
-        force_method: str switch for debugging, options are:
-                    - 'old' default
-                    - 'new'
         """
         super().__init__(**kwargs)
 
@@ -98,7 +98,6 @@ class EAMPotential(tf.keras.Model):
         self.build_forces = build_forces
         self.preprocessed_input = preprocessed_input
         self.method = method
-        self.force_method = force_method
 
         inputs = {"types": tf.keras.Input(shape=(None, 1), ragged=True, dtype=tf.int32)}
 
@@ -108,10 +107,8 @@ class EAMPotential(tf.keras.Model):
             )
             inputs["distances"] = tf.keras.Input(shape=(None, None, 1), ragged=True)
             if self.build_forces:
-                # [batchsize] x N x (N-1) x N x 3
-                inputs["dr_dx"] = tf.keras.Input(
-                    shape=(None, None, None, 3), ragged=True
-                )
+                # [batchsize] x N x N x 3, see preprocessing.py for further details
+                inputs["dr_dx"] = tf.keras.Input(shape=(None, None, 3), ragged=True)
         else:
             self.cutoff = cutoff
             if self.cutoff is None:
@@ -204,26 +201,18 @@ class EAMPotential(tf.keras.Model):
     def deep_call(self, inputs):
         types = inputs["types"]
         positions = inputs["positions"]
-        distances, pair_types, dr_dx = tf.map_fn(
-            lambda x: distances_and_pair_types(
-                x[0], x[1], len(self.atom_types), self.cutoff
-            ),
-            (positions, types),
-            fn_output_signature=(
-                tf.RaggedTensorSpec(
-                    shape=[None, None, 1], ragged_rank=1, dtype=positions.dtype
-                ),
-                tf.RaggedTensorSpec(
-                    shape=[None, None, 1], ragged_rank=1, dtype=types.dtype
-                ),
-                tf.RaggedTensorSpec(
-                    shape=[None, None, None, 3], ragged_rank=2, dtype=positions.dtype
-                ),
-            ),
-        )
 
         if self.build_forces:
+            distances, pair_types, dr_dx = distances_and_pair_types(
+                positions, types, len(self.atom_types), diagonal=self.cutoff
+            )
             return self.main_body_with_forces(types, distances, pair_types, dr_dx)
+        (
+            distances,
+            pair_types,
+        ) = distances_and_pair_types_no_grad(
+            positions, types, len(self.atom_types), diagonal=self.cutoff
+        )
         return self.main_body_no_forces(types, distances, pair_types)
 
     @tf.function
@@ -274,53 +263,15 @@ class EAMPotential(tf.keras.Model):
         """
         with tf.GradientTape() as tape:
             tape.watch(distances)
-            if self.method == "partition_stitch":
-                energy = self.body_partition_stitch(types, distances, pair_types)
-            elif self.method == "gather_scatter":
-                energy = self.body_gather_scatter(types, distances, pair_types)
-            elif self.method == "where":
-                energy = self.body_where(types, distances, pair_types)
-            elif self.method == "dense_where":
-                energy = self.body_dense_where(types, distances, pair_types)
-            else:
-                raise NotImplementedError("Unknown method %s" % self.method)
-        if isinstance(types, tf.RaggedTensor):
-            number_of_atoms = tf.cast(
-                types.row_lengths(), energy.dtype, name="number_of_atoms"
-            )
-        else:
-            number_of_atoms = tf.cast(
-                tf.math.count_nonzero(types >= 0), energy.dtype, name="number_of_atoms"
-            )
-        energy_per_atom = tf.divide(
-            energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
+            results = self.main_body_no_forces(types, distances, pair_types)
+
+        dE_dr = tape.gradient(results["energy"], distances)
+        results["forces"] = -(
+            tf.reduce_sum(dE_dr * dr_dx, axis=-3, name="dE_dr_times_dr_dx_sum_i")
+            - tf.reduce_sum(dE_dr * dr_dx, axis=-2, name="dE_dr_times_dr_dx_sum_j")
         )
 
-        dE_dr = tape.gradient(energy, distances)
-        if self.force_method == "old":
-            # dr_dx.shape = (batch_size, None, None, None, 3)
-            # dE_dr.shape = (batch_size, None, None, 1)
-            # Sum over atom indices i and j. Force is the negative gradient.
-            forces = -tf.reduce_sum(
-                dr_dx * tf.expand_dims(dE_dr, -1),
-                axis=(-3, -4),
-                name="dE_dr_times_dr_dx",
-            )
-        elif self.force_method == "new":
-            dr_dx = dr_dx.merge_dims(1, 2)
-            dE_dr = dE_dr.merge_dims(1, 2)
-            # dr_dx.shape = (batch_size, None, None, 3)
-            # dE_dr.shape = (batch_size, None, 1)
-            forces = -tf.reduce_sum(
-                dr_dx * tf.expand_dims(dE_dr, -1), axis=-3, name="dE_dr_times_dr_dx"
-            )
-        else:
-            raise NotImplementedError("Unknown force method %s" % self.force_method)
-        return {
-            "energy": energy,
-            "energy_per_atom": energy_per_atom,
-            "forces": forces,
-        }
+        return results
 
     @tf.function
     def body_where(self, types, distances, pair_types):
