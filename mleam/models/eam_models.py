@@ -250,17 +250,20 @@ class EAMPotential(tf.keras.Model):
             energy = self.body_dense_where(types, distances, pair_types)
         else:
             raise NotImplementedError("Unknown method %s" % self.method)
+
         if isinstance(types, tf.RaggedTensor):
-            number_of_atoms = tf.cast(
-                types.row_lengths(), energy.dtype, name="number_of_atoms"
+            number_of_atoms = tf.expand_dims(
+                tf.cast(types.row_lengths(), energy.dtype, name="number_of_atoms"),
+                axis=-1,
             )
         else:
             number_of_atoms = tf.cast(
-                tf.math.count_nonzero(types >= 0), energy.dtype, name="number_of_atoms"
+                tf.math.count_nonzero(types >= 0, axis=-2),
+                energy.dtype,
+                name="number_of_atoms",
             )
-        energy_per_atom = tf.divide(
-            energy, tf.expand_dims(number_of_atoms, axis=-1), name="energy_per_atom"
-        )
+
+        energy_per_atom = tf.divide(energy, number_of_atoms, name="energy_per_atom")
 
         return {"energy": energy, "energy_per_atom": energy_per_atom}
 
@@ -322,15 +325,15 @@ class EAMPotential(tf.keras.Model):
     @tf.function
     def body_where(self, types, distances, pair_types):
         """"""
-        rho = distances
-        phi = distances
+        rho = tf.zeros_like(distances)
+        phi = tf.zeros_like(distances)
         for t in self.atom_pair_types:
             cond = tf.equal(pair_types, self.pair_type_dict[t])
             rho = ragged_where(
-                cond, tf.ragged.map_flat_values(self.pair_rho[t], rho), rho
+                cond, tf.ragged.map_flat_values(self.pair_rho[t], distances), rho
             )
             phi = ragged_where(
-                cond, tf.ragged.map_flat_values(self.pair_potentials[t], phi), phi
+                cond, tf.ragged.map_flat_values(self.pair_potentials[t], distances), phi
             )
 
         # Sum over atoms j
@@ -339,7 +342,7 @@ class EAMPotential(tf.keras.Model):
 
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
-        embedding_energies = tf.math.maximum(sum_rho, 1e-30)
+        embedding_energies = 1e-30 * tf.ones_like(sum_rho)
         for t in self.atom_types:
             cond = tf.equal(types, self.type_dict[t])
             # tf.abs(x) necessary here since most embedding functions do not
@@ -348,10 +351,8 @@ class EAMPotential(tf.keras.Model):
             embedding_energies = ragged_where(
                 cond,
                 tf.ragged.map_flat_values(
-                    lambda x: (
-                        self.embedding_functions[t](tf.abs(x)) + self.offsets[t](x)
-                    ),
-                    embedding_energies,
+                    lambda x: (self.embedding_functions[t](x) + self.offsets[t](x)),
+                    sum_rho,
                 ),
                 embedding_energies,
             )
@@ -363,12 +364,12 @@ class EAMPotential(tf.keras.Model):
     @tf.function
     def body_dense_where(self, types, distances, pair_types):
         """"""
-        rho = distances
-        phi = distances
+        rho = tf.zeros_like(distances)
+        phi = tf.zeros_like(distances)
         for t in self.atom_pair_types:
             cond = tf.equal(pair_types, self.pair_type_dict[t])
-            rho = tf.where(cond, self.pair_rho[t](rho), rho)
-            phi = tf.where(cond, self.pair_potentials[t](phi), phi)
+            rho = tf.where(cond, self.pair_rho[t](distances), rho)
+            phi = tf.where(cond, self.pair_potentials[t](distances), phi)
 
         # Sum over atoms j
         sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho")
@@ -376,20 +377,14 @@ class EAMPotential(tf.keras.Model):
 
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
-        embedding_energies = tf.math.maximum(sum_rho, 1e-30)
+        embedding_energies = 1e-30 * tf.ones_like(sum_rho)
         for t in self.atom_types:
             cond = tf.equal(types, self.type_dict[t])
-            # tf.abs(x) necessary here since most embedding functions do not
-            # support negative inputs but embedding energies are typically
-            # negative and tf.where applies the function to every vector entry
             embedding_energies = tf.where(
                 cond,
-                self.embedding_functions[t](tf.abs(embedding_energies))
-                + self.offsets[t](embedding_energies),
+                self.embedding_functions[t](sum_rho) + self.offsets[t](sum_rho),
                 embedding_energies,
             )
-        tf.print(-tf.sqrt(sum_rho))
-        tf.print(embedding_energies)
         atomic_energies = 0.5 * sum_phi + embedding_energies
 
         # Sum over atoms i
