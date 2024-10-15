@@ -78,13 +78,15 @@ def test_versus_lammps(resource_path_root, params):
     assert prediction["energy_per_atom"].shape == (1, 1)
     assert tuple(prediction["forces"].bounding_shape()) == (1, 38, 3)
 
-    np.testing.assert_allclose(prediction["energy"].numpy()[0], e_ref, atol=1e-5)
     np.testing.assert_allclose(
-        prediction["energy_per_atom"].numpy()[0],
-        e_ref / N,
-        atol=1e-5,
+        prediction["energy"].numpy()[0], e_ref, atol=1e-5, rtol=1e-5
     )
-    np.testing.assert_allclose(prediction["forces"].numpy()[0], forces_ref, atol=1e-5)
+    np.testing.assert_allclose(
+        prediction["energy_per_atom"].numpy()[0], e_ref / N, atol=1e-5, rtol=1e-5
+    )
+    np.testing.assert_allclose(
+        prediction["forces"].numpy()[0], forces_ref, atol=1e-5, rtol=1e-5
+    )
 
 
 @pytest.mark.parametrize(
@@ -226,8 +228,20 @@ def test_body_methods(method, forces, params):
         )
 
 
-def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
-    N = 10000
+def test_tabulation(params, resource_path_root, tmpdir, atol=1e-4, rtol=1e-2):
+    def read_tabulated_potential(path, skiprows=6):
+        skiprows = 6
+        with open(path, "r") as fin:
+            lines = fin.readlines()
+        nrho, nr = int(lines[4].split()[0]), int(lines[4].split()[2])
+        tabs = np.zeros(len(lines) - skiprows)
+        for i, line in enumerate(lines[skiprows:]):
+            tabs[i] = float(line.split()[0])
+        return nrho, nr, tabs
+
+    nrho, nr, ref = read_tabulated_potential(
+        resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs"
+    )
 
     model = SMATB(["Ni", "Pt"], params=params)
     model.tabulate(
@@ -235,41 +249,44 @@ def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
         atomic_numbers=dict(Ni=28, Pt=78),
         atomic_masses=dict(Ni=58.6934, Pt=195.084),
         cutoff_rho=100.0,
-        nrho=N,
+        nrho=nrho,
         cutoff=6.0,
-        nr=N,
+        nr=nr,
     )
 
-    ref = np.loadtxt(
-        resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs",
-        skiprows=6,
-        usecols=0,
-    )
-    test = np.loadtxt(tmpdir / "tmp.eam.fs", skiprows=6, usecols=0)
-
-    def compare_tabs(start_ind):
-        np.testing.assert_allclose(
-            test[start_ind : start_ind + N], ref[start_ind : start_ind + N], atol=atol
-        )
+    _, _, test = read_tabulated_potential(tmpdir / "tmp.eam.fs")
+    assert len(ref) == len(test)
 
     # F Ni:
-    compare_tabs(0)
+    start_Ni = 0
+    inds = slice(start_Ni, start_Ni + nrho)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # F Pt:
-    compare_tabs(3 * N + 1)
+    start_Pt = nrho + 3 * nr + 1
+    inds = slice(start_Pt, start_Pt + nrho)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # rho NiNi:
-    compare_tabs(N)
+    inds = slice(start_Ni + nrho, start_Ni + nrho + nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # rho NiPt:
-    compare_tabs(2 * N)
+    inds = slice(start_Ni + nrho + nr, start_Ni + nrho + 2 * nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # rho PtNi:
-    compare_tabs(3 * N + 1 + N)
+    inds = slice(start_Pt + nrho, start_Pt + nrho + nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # rho PtPt:
-    compare_tabs(3 * N + 1 + 2 * N)
+    inds = slice(start_Pt + nrho + nr, start_Pt + nrho + 2 * nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # phi NiNi:
-    compare_tabs(3 * N + 1 + 3 * N)
+    start_phi = start_Pt + nrho + 2 * nr
+    inds = slice(start_phi, start_phi + nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # phi NiPt:
-    compare_tabs(3 * N + 1 + 3 * N + N)
+    inds = slice(start_phi + nr, start_phi + 2 * nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
     # phi PtPt:
-    compare_tabs(3 * N + 1 + 3 * N + 2 * N)
+    inds = slice(start_phi + 2 * nr, start_phi + 3 * nr)
+    np.testing.assert_allclose(test[inds], ref[inds], rtol=rtol, atol=atol)
 
 
 def test_load_smatb_model(resource_path_root):

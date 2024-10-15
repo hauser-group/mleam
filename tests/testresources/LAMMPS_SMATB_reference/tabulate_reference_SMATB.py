@@ -156,10 +156,10 @@ def main():
 
     # Number of grid points and cut-offs for tabulation.
     cutoff_rho = 100.0
-    nrho = 10000
+    nrho = 1000
 
     cutoff = 6.0
-    nr = 10000
+    nr = 1000
 
     tabulation = SetFL_FS_EAMTabulation(
         pair_potentials, eam_potentials, cutoff, nr, cutoff_rho, nrho
