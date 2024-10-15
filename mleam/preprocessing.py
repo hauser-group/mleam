@@ -2,42 +2,74 @@ import numpy as np
 import tensorflow as tf
 
 
-def distances_and_pair_types(xyzs, types, n_types, diagonal=0.0):
-    distances, gradient = get_distance_matrix_and_derivative(xyzs, diagonal=diagonal)
+def preprocess_inputs(xyzs, types, n_types, diagonal=0.0):
+    distances, dr_dx = get_distance_matrix_and_derivative(xyzs, diagonal=diagonal)
     pair_types = get_pair_types(types, n_types)
 
-    return distances, pair_types, gradient
+    return types, pair_types, distances, dr_dx
 
 
-def ragged_distances_and_pair_types(xyzs, types, n_types, cutoff=np.inf):
-    distances, pair_types, derivative = distances_and_pair_types(xyzs, types, n_types)
-    mask = tf.logical_and(
-        tf.less_equal(distances[:, :, 0], cutoff, name="mask_max_cutoff"),
-        tf.greater(distances[:, :, 0], 0.0),
+def preprocess_inputs_ragged(xyzs, types, n_types, cutoff=np.inf):
+    # remove dummy atoms, this also converts everything to ragged tensors
+    mask = tf.greater_equal(types[..., 0], 0)
+    xyzs = tf.ragged.boolean_mask(xyzs, mask)
+    types = tf.ragged.boolean_mask(types, mask)
+
+    types, pair_types, distances, derivative = preprocess_inputs(xyzs, types, n_types)
+
+    # TODO: needs proper explanation ASAP.
+    j_indices = tf.ones_like(xyzs[..., 0], dtype=tf.int64)
+    j_indices = tf.math.cumsum(
+        tf.reduce_sum(
+            j_indices,
+            axis=-1,
+            keepdims=True,
+        ),
+        exclusive=True,
+    ) + tf.math.cumsum(
+        j_indices,
+        axis=-1,
+        exclusive=True,
+    )
+    j_indices = tf.expand_dims(j_indices, axis=-2) * tf.expand_dims(
+        tf.ones_like(j_indices, dtype=j_indices.dtype), axis=-1
     )
 
+    mask = tf.logical_and(
+        tf.less_equal(distances[..., 0], cutoff, name="mask_max_cutoff"),
+        tf.greater(distances[..., 0], 0.0),
+    )
+
+    # Ideally this should not rag along the first atomic index unless
+    # necessary...
     distances = tf.ragged.boolean_mask(distances, mask)
     pair_types = tf.ragged.boolean_mask(pair_types, mask)
     derivative = tf.ragged.boolean_mask(derivative, mask)
-    return distances, pair_types, derivative
+    j_indices = tf.ragged.boolean_mask(j_indices, mask)
+    return types, pair_types, distances, derivative, j_indices
 
 
-def distances_and_pair_types_no_grad(xyzs, types, n_types, diagonal=0.0):
+def preprocess_inputs_no_force(xyzs, types, n_types, diagonal=0.0):
     pair_types = get_pair_types(types, n_types)
     distances = get_distance_matrix(xyzs, diagonal=diagonal)
-    return distances, pair_types
+    return types, pair_types, distances
 
 
-def ragged_distances_and_pair_types_no_grad(xyzs, types, n_types, cutoff=np.inf):
-    distances, pair_types = distances_and_pair_types_no_grad(xyzs, types, n_types)
+def preprocess_inputs_ragged_no_force(xyzs, types, n_types, cutoff=np.inf):
+    # remove dummy atoms, this also converts everything to ragged tensors
+    mask = tf.greater_equal(types[..., 0], 0)
+    xyzs = tf.ragged.boolean_mask(xyzs, mask)
+    types = tf.ragged.boolean_mask(types, mask)
+
+    types, pair_types, distances = preprocess_inputs_no_force(xyzs, types, n_types)
     mask = tf.logical_and(
-        tf.less_equal(distances[:, :, 0], cutoff, name="mask_max_cutoff"),
-        tf.greater(distances[:, :, 0], 0.0),
+        tf.less_equal(distances[..., 0], cutoff, name="mask_max_cutoff"),
+        tf.greater(distances[..., 0], 0.0),
     )
 
     distances = tf.ragged.boolean_mask(distances, mask, name="ragged_mask_distances")
     pair_types = tf.ragged.boolean_mask(pair_types, mask, name="ragged_mask_pair_types")
-    return distances, pair_types
+    return types, pair_types, distances
 
 
 def get_pair_types(types, n_types):
@@ -56,11 +88,18 @@ def get_pair_types(types, n_types):
     min_ij = tf.math.minimum(tf.expand_dims(types, axis=-2), tf.expand_dims(types, -3))
     # TODO: is the second line really needed here? Should be generalized to
     # asymmetric functions anyway
-    return (
+    pair_types = (
         n_types * min_ij
         - (min_ij * (min_ij - 1)) // 2
         + tf.abs(tf.expand_dims(types, axis=-2) - tf.expand_dims(types, axis=-3))
     )
+    pair_types = tf.ragged.map_flat_values(
+        tf.where,
+        min_ij < 0,
+        -1 * tf.ones_like(pair_types, dtype=pair_types.dtype),
+        pair_types,
+    )
+    return pair_types
 
 
 def get_distance_matrix(xyzs, diagonal=0.0):

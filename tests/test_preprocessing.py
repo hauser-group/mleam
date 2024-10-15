@@ -7,7 +7,8 @@ from mleam.preprocessing import (
     get_distance_matrix,
     get_distance_matrix_and_derivative,
     get_distance_matrix_and_full_derivative,
-    distances_and_pair_types,
+    preprocess_inputs,
+    preprocess_inputs_ragged,
 )
 from scipy.spatial.transform import Rotation
 
@@ -24,18 +25,18 @@ def types():
 
 
 @pytest.fixture
-def batched_xyzs():
+def padded_xyzs():
     return tf.constant(
         [
             [[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 3.0, 4.0]],
-            [[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 4.0, 3.0]],
+            [[0, 0, 0], [3.0, 0, 0], [0, 4.0, 0], [0, 0, 0]],
         ],
     )
 
 
 @pytest.fixture
-def batched_types():
-    return tf.expand_dims(tf.constant([[0, 0, 1, 1], [0, 0, 0, 1]]), axis=-1)
+def padded_types():
+    return tf.expand_dims(tf.constant([[0, 0, 1, 1], [0, 0, 1, -1]]), axis=-1)
 
 
 @pytest.fixture
@@ -75,8 +76,13 @@ def test_distance_matrix(xyzs, atol=1e-6):
     )
 
 
-def test_batched_distance_matrix(batched_xyzs, atol=1e-6):
-    r = get_distance_matrix(batched_xyzs, 8.1)
+def test_padded_distance_matrix(padded_xyzs, atol=1e-6):
+    # 3 char variable names to aid readibility
+    cut = 8.1
+    r13 = np.sqrt(34)
+    r23 = np.sqrt(17)
+
+    r = get_distance_matrix(padded_xyzs, cut)
 
     assert r.shape == (2, 4, 4, 1)
 
@@ -86,16 +92,16 @@ def test_batched_distance_matrix(batched_xyzs, atol=1e-6):
             np.array(
                 [
                     [
-                        [8.1, 3.0, 4.0, 5.0],
-                        [3.0, 8.1, 5.0, np.sqrt(34)],
-                        [4.0, 5.0, 8.1, np.sqrt(17)],
-                        [5.0, np.sqrt(34), np.sqrt(17), 8.1],
+                        [cut, 3.0, 4.0, 5.0],
+                        [3.0, cut, 5.0, r13],
+                        [4.0, 5.0, cut, r23],
+                        [5.0, r13, r23, cut],
                     ],
                     [
-                        [8.1, 3.0, 4.0, 5.0],
-                        [3.0, 8.1, 5.0, np.sqrt(34)],
-                        [4.0, 5.0, 8.1, 3.0],
-                        [5.0, np.sqrt(34), 3.0, 8.1],
+                        [cut, 3.0, 4.0, cut],
+                        [3.0, cut, 5.0, 3.0],
+                        [4.0, 5.0, cut, 4.0],
+                        [cut, 3.0, 4.0, cut],
                     ],
                 ]
             ),
@@ -105,7 +111,12 @@ def test_batched_distance_matrix(batched_xyzs, atol=1e-6):
 
 
 def test_ragged_batch_distance_matrix(ragged_xyzs, atol=1e-6):
-    r = get_distance_matrix(ragged_xyzs, 8.1)
+    # 3 char variable names to aid readibility
+    cut = 8.1
+    r13 = np.sqrt(34)
+    r23 = np.sqrt(17)
+
+    r = get_distance_matrix(ragged_xyzs, cut)
 
     assert r.shape == (2, None, None, 1)
     np.testing.assert_array_equal(r.nested_row_splits[0], [0, 4, 7])
@@ -115,10 +126,10 @@ def test_ragged_batch_distance_matrix(ragged_xyzs, atol=1e-6):
         r[0, :, :, 0].numpy(),
         np.array(
             [
-                [8.1, 3.0, 4.0, 5.0],
-                [3.0, 8.1, 5.0, np.sqrt(34)],
-                [4.0, 5.0, 8.1, np.sqrt(17)],
-                [5.0, np.sqrt(34), np.sqrt(17), 8.1],
+                [cut, 3.0, 4.0, 5.0],
+                [3.0, cut, 5.0, r13],
+                [4.0, 5.0, cut, r23],
+                [5.0, r13, r23, cut],
             ]
         ),
     )
@@ -127,9 +138,9 @@ def test_ragged_batch_distance_matrix(ragged_xyzs, atol=1e-6):
         r[1, :, :, 0].numpy(),
         np.array(
             [
-                [8.1, 3.0, 4.0],
-                [3.0, 8.1, 5.0],
-                [4.0, 5.0, 8.1],
+                [cut, 3.0, 4.0],
+                [3.0, cut, 5.0],
+                [4.0, 5.0, cut],
             ]
         ),
     )
@@ -154,8 +165,28 @@ def test_pair_types(types):
     )
 
 
-def test_batched_pair_types(batched_types):
-    pair_types = get_pair_types(batched_types, 2)
+def test_negative_pair_type():
+    # Negative types are used for masking/padding
+    types = tf.expand_dims(tf.constant([0, 0, 1, 1, -1, -2]), axis=-1)
+    pair_types = get_pair_types(types, 2)
+
+    np.testing.assert_array_equal(
+        tf.squeeze(pair_types),
+        np.array(
+            [
+                [0, 0, 1, 1, -1, -1],
+                [0, 0, 1, 1, -1, -1],
+                [1, 1, 2, 2, -1, -1],
+                [1, 1, 2, 2, -1, -1],
+                [-1, -1, -1, -1, -1, -1],
+                [-1, -1, -1, -1, -1, -1],
+            ]
+        ),
+    )
+
+
+def test_padded_pair_types(padded_types):
+    pair_types = get_pair_types(padded_types, 2)
 
     assert pair_types.shape == (2, 4, 4, 1)
 
@@ -171,10 +202,10 @@ def test_batched_pair_types(batched_types):
                         [1, 1, 2, 2],
                     ],
                     [
-                        [0, 0, 0, 1],
-                        [0, 0, 0, 1],
-                        [0, 0, 0, 1],
-                        [1, 1, 1, 2],
+                        [0, 0, 1, -1],
+                        [0, 0, 1, -1],
+                        [1, 1, 2, -1],
+                        [-1, -1, -1, -1],
                     ],
                 ]
             ),
@@ -264,11 +295,76 @@ def test_get_distance_matrix_and_full_derivative(xyzs, atol=1e-6):
     np.testing.assert_allclose(dr_dx, num_dr_dx, atol=atol)
 
 
-def test_distance_and_pair_types(ragged_xyzs, ragged_types):
-    distances, pair_types, derivative = distances_and_pair_types(
+def test_preprocess_inputs(ragged_xyzs, ragged_types):
+    types, pair_types, distances, derivative = preprocess_inputs(
         ragged_xyzs, ragged_types, 2, 5.1
     )
 
     assert distances.shape == (2, None, None, 1)
     assert pair_types.shape == (2, None, None, 1)
     assert derivative.shape == (2, None, None, 3)
+
+
+def test_preprocess_inputs_ragged_ragged_input(ragged_xyzs, ragged_types):
+    cutoff = 5.1
+    types, pair_types, distances, derivative, j_indices = preprocess_inputs_ragged(
+        ragged_xyzs, ragged_types, 2, cutoff=cutoff
+    )
+
+    assert distances.dtype == ragged_xyzs.dtype
+    assert pair_types.dtype == ragged_types.dtype
+    assert derivative.dtype == ragged_xyzs.dtype
+    assert j_indices.dtype == tf.int64
+
+    assert distances.shape == (2, None, None, 1)
+    assert pair_types.shape == (2, None, None, 1)
+    assert derivative.shape == (2, None, None, 3)
+    assert j_indices.shape == (2, None, None)
+
+    assert j_indices.to_list() == [
+        [[1, 2, 3], [0, 2], [0, 1, 3], [0, 2]],
+        [[5, 6], [4, 6], [4, 5]],
+    ]
+
+
+def test_preprocess_inputs_ragged_padded_input(padded_xyzs, padded_types):
+    cutoff = 5.1
+    types, pair_types, distances, derivative, j_indices = preprocess_inputs_ragged(
+        padded_xyzs, padded_types, 2, cutoff=cutoff
+    )
+
+    assert types.dtype == padded_types.dtype
+    assert distances.dtype == padded_xyzs.dtype
+    assert pair_types.dtype == padded_types.dtype
+    assert derivative.dtype == padded_xyzs.dtype
+    assert j_indices.dtype == tf.int64
+
+    assert types.shape == (2, None, 1)
+    assert distances.shape == (2, None, None, 1)
+    assert pair_types.shape == (2, None, None, 1)
+    assert derivative.shape == (2, None, None, 3)
+    assert j_indices.shape == (2, None, None)
+
+    assert j_indices.to_list() == [
+        [[1, 2, 3], [0, 2], [0, 1, 3], [0, 2]],
+        [[5, 6], [4, 6], [4, 5]],
+    ]
+
+
+def test_ragged_distance_and_pair_types_single_input(xyzs, types):
+    cutoff = 5.1
+    types, pair_types, distances, derivative, j_indices = preprocess_inputs_ragged(
+        xyzs, types, 2, cutoff=cutoff
+    )
+
+    assert distances.dtype == xyzs.dtype
+    assert pair_types.dtype == types.dtype
+    assert derivative.dtype == xyzs.dtype
+    assert j_indices.dtype == tf.int64
+
+    assert distances.shape == (4, None, 1)
+    assert pair_types.shape == (4, None, 1)
+    assert derivative.shape == (4, None, 3)
+    assert j_indices.shape == (4, None)
+
+    assert j_indices.to_list() == [[1, 2, 3], [0, 2], [0, 1, 3], [0, 2]]

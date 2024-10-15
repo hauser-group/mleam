@@ -2,8 +2,8 @@ import tensorflow as tf
 import numpy as np
 import json
 from mleam.preprocessing import (
-    distances_and_pair_types,
-    distances_and_pair_types_no_grad,
+    preprocess_inputs_ragged,
+    preprocess_inputs_ragged_no_force,
 )
 
 
@@ -117,37 +117,42 @@ def preprocessed_dataset_from_json(
 
         @tf.function
         def input_transform(inp):
-            r, pair_types, dr_dx = distances_and_pair_types(
+            types, pair_types, r, dr_dx, j_indices = preprocess_inputs_ragged(
                 inp["positions"], inp["types"], len(type_dict), cutoff
             )
             return dict(
-                types=inp["types"],
+                types=types,
                 pair_types=pair_types,
                 distances=r,
                 dr_dx=dr_dx,
+                j_indices=j_indices,
             )
     else:
 
         @tf.function
         def input_transform(inp):
-            r, pair_types = distances_and_pair_types_no_grad(
+            types, pair_types, r = preprocess_inputs_ragged_no_force(
                 inp["positions"], inp["types"], len(type_dict), cutoff
             )
             return dict(
-                types=inp["types"],
+                types=types,
                 pair_types=pair_types,
                 distances=r,
             )
 
-    input_dataset = input_dataset.map(
-        input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    input_dataset = input_dataset.ragged_batch(
+        batch_size=batch_size, name="batching"
+    ).map(input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    output_dataset = _output_dataset_from_json(
+        data, forces=forces, floatx=floatx
+    ).ragged_batch(batch_size=batch_size, name="batching")
+
+    dataset = (
+        tf.data.Dataset.zip((input_dataset, output_dataset))
+        .cache()
+        .prefetch(tf.data.experimental.AUTOTUNE)
     )
-
-    output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
-
-    dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    dataset = dataset.ragged_batch(batch_size=batch_size, name="batching")
-    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return dataset
 

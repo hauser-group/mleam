@@ -34,8 +34,8 @@ from mleam.layers import (
     NNSqrtEmbedding,
 )
 from mleam.preprocessing import (
-    distances_and_pair_types,
-    distances_and_pair_types_no_grad,
+    preprocess_inputs_ragged,
+    preprocess_inputs_ragged_no_force,
 )
 from mleam.constants import InputNormType
 import warnings
@@ -109,6 +109,9 @@ class EAMPotential(tf.keras.Model):
             if self.build_forces:
                 # [batchsize] x N x N x 3, see preprocessing.py for further details
                 inputs["dr_dx"] = tf.keras.Input(shape=(None, None, 3), ragged=True)
+                inputs["j_indices"] = tf.keras.Input(
+                    shape=(None, None), ragged=True, dtype=tf.int32
+                )
         else:
             self.cutoff = cutoff
             if self.cutoff is None:
@@ -199,19 +202,21 @@ class EAMPotential(tf.keras.Model):
 
     @tf.function
     def deep_call(self, inputs):
-        types = inputs["types"]
-        positions = inputs["positions"]
-
         if self.build_forces:
-            distances, pair_types, dr_dx = distances_and_pair_types(
-                positions, types, len(self.atom_types), diagonal=self.cutoff
+            types, pair_types, distances, dr_dx, j_indices = preprocess_inputs_ragged(
+                inputs["positions"],
+                inputs["types"],
+                len(self.atom_types),
+                cutoff=self.cutoff,
             )
-            return self.main_body_with_forces(types, distances, pair_types, dr_dx)
-        (
-            distances,
-            pair_types,
-        ) = distances_and_pair_types_no_grad(
-            positions, types, len(self.atom_types), diagonal=self.cutoff
+            return self.main_body_with_forces(
+                types, distances, pair_types, dr_dx, j_indices
+            )
+        types, pair_types, distances = preprocess_inputs_ragged_no_force(
+            inputs["positions"],
+            inputs["types"],
+            len(self.atom_types),
+            cutoff=self.cutoff,
         )
         return self.main_body_no_forces(types, distances, pair_types)
 
@@ -223,7 +228,10 @@ class EAMPotential(tf.keras.Model):
 
         if self.build_forces:
             dr_dx = inputs["dr_dx"]
-            return self.main_body_with_forces(types, distances, pair_types, dr_dx)
+            j_indices = inputs["j_indices"]
+            return self.main_body_with_forces(
+                types, distances, pair_types, dr_dx, j_indices
+            )
         return self.main_body_no_forces(types, distances, pair_types)
 
     @tf.function
@@ -257,7 +265,7 @@ class EAMPotential(tf.keras.Model):
         return {"energy": energy, "energy_per_atom": energy_per_atom}
 
     @tf.function
-    def main_body_with_forces(self, types, distances, pair_types, dr_dx):
+    def main_body_with_forces(self, types, distances, pair_types, dr_dx, j_indices):
         """Calculates the energy per atom and the derivative of the total
         energy with respect to the distances
         """
@@ -267,7 +275,15 @@ class EAMPotential(tf.keras.Model):
 
         dE_dr = tape.gradient(results["energy"], distances)
         results["forces"] = -(
-            tf.reduce_sum(dE_dr * dr_dx, axis=-3, name="dE_dr_times_dr_dx_sum_i")
+            tf.RaggedTensor.from_row_splits(
+                tf.math.unsorted_segment_sum(
+                    (dE_dr * dr_dx),
+                    j_indices,
+                    distances.row_splits[-1],
+                    name="dE_dr_times_dr_dx_sum_i",
+                ),
+                distances.row_splits,
+            )
             - tf.reduce_sum(dE_dr * dr_dx, axis=-2, name="dE_dr_times_dr_dx_sum_j")
         )
 

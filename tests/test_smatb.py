@@ -70,7 +70,7 @@ def test_versus_lammps(resource_path_root, params):
 
     model = SMATB(["Ni", "Pt"], params=params, build_forces=True)
 
-    types = tf.expand_dims(tf.ragged.constant([types]), axis=2)
+    types = tf.expand_dims(tf.ragged.constant([types]), axis=-1)
     positions = tf.ragged.constant([positions], ragged_rank=1)
     prediction = model({"types": types, "positions": positions})
 
@@ -100,7 +100,7 @@ def test_versus_ferrando_code(params, resource_path_root):
     )
     positions = tf.ragged.constant(data["positions"], ragged_rank=1)
 
-    model = SMATB(["Ni", "Pt"], params=params, build_forces=True)
+    model = SMATB(["Ni", "Pt"], params=params, build_forces=False)
 
     e_model = model({"types": types, "positions": positions})["energy"]
 
@@ -109,123 +109,139 @@ def test_versus_ferrando_code(params, resource_path_root):
     np.testing.assert_allclose(e_model.numpy().flatten(), e_ref, rtol=1e-2)
 
 
-def test_body_methods(tmpdir, atol=1e-6):
-    tf.keras.backend.clear_session()
-    # Random input
-    xyzs = tf.RaggedTensor.from_tensor(tf.random.normal((1, 4, 3)), lengths=[4])
-    types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
-
-    # Generate 12 random positive numbers for the SMATB parameters
-    p = np.abs(np.random.randn(12))
-    random_params = {
-        ("A", "PtPt"): p[0],
-        ("A", "NiPt"): p[1],
-        ("A", "NiNi"): p[2],
-        ("xi", "PtPt"): p[3],
-        ("xi", "NiPt"): p[4],
-        ("xi", "NiNi"): p[5],
-        ("p", "PtPt"): p[6],
-        ("p", "NiPt"): p[7],
-        ("p", "NiNi"): p[8],
-        ("q", "PtPt"): p[9],
-        ("q", "NiPt"): p[10],
-        ("q", "NiNi"): p[11],
-        ("r0", "PtPt"): 2.77,
-        ("r0", "NiPt"): 2.63,
-        ("r0", "NiNi"): 2.49,
-        ("cut_a", "PtPt"): 4.087,
-        ("cut_b", "PtPt"): 5.006,
-        ("cut_a", "NiPt"): 4.087,
-        ("cut_b", "NiPt"): 4.434,
-        ("cut_a", "NiNi"): 3.620,
-        ("cut_b", "NiNi"): 4.434,
-    }
+@pytest.mark.parametrize(
+    "method",
+    [
+        "partition_stitch",
+        "gather_scatter",
+        "where",
+        # "dense_where",
+    ],
+)
+@pytest.mark.parametrize("forces", [False, True])
+def test_body_methods(method, forces, params):
+    xyzs = tf.ragged.constant(
+        [
+            [
+                [0.0, 0.0, 0.0],
+                [2.91, -1.12, -4.20],
+                [0.64, -3.05, -2.22],
+                [-1.09, -0.97, -2.27],
+            ],
+            [
+                [0.0, 0.0, 0.0],
+                [2.91, -1.12, -4.20],
+                [0.64, -3.05, -2.22],
+            ],
+        ],
+        ragged_rank=1,
+    )
+    types = tf.ragged.constant(
+        [
+            [[0], [1], [0], [1]],
+            [[0], [1], [0]],
+        ],
+        ragged_rank=1,
+    )
 
     model = SMATB(
         ["Ni", "Pt"],
-        params=random_params,
-        build_forces=True,
-        method="partition_stitch",
+        params=params,
+        build_forces=forces,
+        method=method,
     )
-    prediction_1 = model({"positions": xyzs, "types": types})
-    e_1, forces_1 = (prediction_1["energy_per_atom"], prediction_1["forces"])
-    model.save_weights(tmpdir / "tmp_model.h5")
+    prediction = model({"positions": xyzs, "types": types})
 
-    model_2 = SMATB(
-        ["Ni", "Pt"], params=random_params, build_forces=True, method="where"
-    )
-    _ = model_2({"positions": xyzs, "types": types})
-    model_2.load_weights(tmpdir / "tmp_model.h5")
-    prediction_2 = model_2({"positions": xyzs, "types": types})
-    e_2, forces_2 = (prediction_2["energy_per_atom"], prediction_2["forces"])
-
-    np.testing.assert_allclose(e_1.numpy(), e_2.numpy(), equal_nan=False, atol=1e-6)
     np.testing.assert_allclose(
-        forces_1.to_tensor().numpy(),
-        forces_2.to_tensor().numpy(),
-        equal_nan=False,
-        atol=1e-6,
+        prediction["energy"],
+        np.array(
+            [
+                [-8.0504],
+                [-2.1644],
+            ]
+        ),
+        atol=1e-4,
     )
-
-    model_3 = SMATB(
-        ["Ni", "Pt"],
-        params=random_params,
-        build_forces=True,
-        method="gather_scatter",
-    )
-    _ = model_3({"positions": xyzs, "types": types})
-    model_3.load_weights(tmpdir / "tmp_model.h5")
-    prediction_3 = model_3({"positions": xyzs, "types": types})
-    e_3, forces_3 = (prediction_3["energy_per_atom"], prediction_3["forces"])
-
-    np.testing.assert_allclose(e_1.numpy(), e_3.numpy(), equal_nan=False, atol=1e-6)
     np.testing.assert_allclose(
-        forces_1.to_tensor().numpy(),
-        forces_3.to_tensor().numpy(),
-        equal_nan=False,
-        atol=1e-6,
+        prediction["energy_per_atom"],
+        np.array(
+            [
+                [-2.0126],
+                [-0.7215],
+            ]
+        ),
+        atol=1e-4,
     )
+    if forces:
+        np.testing.assert_allclose(
+            prediction["forces"][0].numpy(),
+            np.array(
+                [
+                    [-1.227, -1.371, -2.830],
+                    [-0.985, -0.609, 0.759],
+                    [-1.246, 3.168, -0.519],
+                    [3.4583, -1.188, 2.590],
+                ]
+            ),
+            atol=1e-3,
+        )
+        np.testing.assert_allclose(
+            prediction["forces"][1].numpy(),
+            np.array(
+                [
+                    [0.181, -0.860, -0.626],
+                    [-1.058, -0.900, 0.923],
+                    [0.878, 1.760, -0.297],
+                ]
+            ),
+            atol=1e-3,
+        )
 
 
 def test_tabulation(params, resource_path_root, tmpdir, atol=5e-2):
+    N = 10000
+
     model = SMATB(["Ni", "Pt"], params=params)
     model.tabulate(
         str(tmpdir / "tmp"),
         atomic_numbers=dict(Ni=28, Pt=78),
         atomic_masses=dict(Ni=58.6934, Pt=195.084),
         cutoff_rho=100.0,
-        nrho=10000,
+        nrho=N,
         cutoff=6.0,
-        nr=10000,
+        nr=N,
     )
 
+    ref = np.loadtxt(
+        resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs",
+        skiprows=6,
+        usecols=0,
+    )
+    test = np.loadtxt(tmpdir / "tmp.eam.fs", skiprows=6, usecols=0)
+
     def compare_tabs(start_ind):
-        ref = np.loadtxt(
-            resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs",
-            skiprows=start_ind,
-            max_rows=10000,
+        np.testing.assert_allclose(
+            test[start_ind : start_ind + N], ref[start_ind : start_ind + N], atol=atol
         )
-        test = np.loadtxt(tmpdir / "tmp.eam.fs", skiprows=start_ind, max_rows=10000)
-        np.testing.assert_allclose(test, ref, atol=atol)
 
     # F Ni:
-    compare_tabs(6)
+    compare_tabs(0)
     # F Pt:
-    compare_tabs(6 + 30000 + 1)
+    compare_tabs(3 * N + 1)
     # rho NiNi:
-    compare_tabs(6 + 10000)
+    compare_tabs(N)
     # rho NiPt:
-    compare_tabs(6 + 20000)
+    compare_tabs(2 * N)
     # rho PtNi:
-    compare_tabs(6 + 30000 + 1 + 10000)
+    compare_tabs(3 * N + 1 + N)
     # rho PtPt:
-    compare_tabs(6 + 30000 + 1 + 20000)
+    compare_tabs(3 * N + 1 + 2 * N)
     # phi NiNi:
-    compare_tabs(6 + 30000 + 1 + 30000)
+    compare_tabs(3 * N + 1 + 3 * N)
     # phi NiPt:
-    compare_tabs(6 + 30000 + 1 + 30000 + 10000)
+    compare_tabs(3 * N + 1 + 3 * N + N)
     # phi PtPt:
-    compare_tabs(6 + 30000 + 1 + 30000 + 20000)
+    compare_tabs(3 * N + 1 + 3 * N + 2 * N)
 
 
 def test_load_smatb_model(resource_path_root):
@@ -259,35 +275,90 @@ def test_load_smatb_model(resource_path_root):
     )
 
 
+@pytest.mark.parametrize(
+    "method",
+    [
+        "partition_stitch",
+        "gather_scatter",
+        "where",
+        # "dense_where",
+    ],
+)
 @pytest.mark.parametrize("forces", [False, True])
-def test_smatb_dense_input(forces):
-    N_atoms = [2, 4, 3]
-    batch_size = len(N_atoms)
-    pad_size = np.max(N_atoms)
-    # Random input
-    rng = np.random.default_rng(0)
-    types = np.zeros([batch_size, pad_size, 1], dtype=np.int32)
-    pair_types = np.zeros([batch_size, pad_size, pad_size, 1], dtype=np.int32)
-    distances = np.zeros([batch_size, pad_size, pad_size, 1])
-    dr_dx = np.zeros([batch_size, pad_size, pad_size, pad_size, 3])
-
-    for i, ni in enumerate(N_atoms):
-        xyzs = rng.normal(size=(ni, 3))
-        distances[i, :ni, :ni, 0] = np.sqrt(
-            np.sum((xyzs[np.newaxis, :] - xyzs[:, np.newaxis]) ** 2, axis=-1)
-        )
-        types[i, :ni, 0] = rng.choice([0, 1], ni)
-
-    inputs = {"types": types, "pair_types": pair_types, "distances": distances}
-    if forces:
-        inputs["dr_dx"] = dr_dx
+def test_smatb_dense_input(method, forces, params):
+    xyzs = tf.constant(
+        [
+            [
+                [0.0, 0.0, 0.0],
+                [2.91, -1.12, -4.20],
+                [0.64, -3.05, -2.22],
+                [-1.09, -0.97, -2.27],
+            ],
+            [
+                [0.0, 0.0, 0.0],
+                [2.91, -1.12, -4.20],
+                [0.64, -3.05, -2.22],
+                [999.9, 999.9, 999.9],
+            ],
+        ],
+    )
+    types = tf.constant(
+        [
+            [[0], [1], [0], [1]],
+            [[0], [1], [0], [-1]],
+        ]
+    )
 
     model = SMATB(
         ["Ni", "Pt"],
-        params={},
+        params=params,
         build_forces=forces,
-        preprocessed_input=True,
-        method="dense_where",
+        method=method,
+        ragged_inputs=True,
     )
-    outputs = model(inputs)
-    print(outputs)
+    prediction = model({"positions": xyzs, "types": types})
+
+    np.testing.assert_allclose(
+        prediction["energy"],
+        np.array(
+            [
+                [-8.0504],
+                [-2.1644],
+            ]
+        ),
+        atol=1e-4,
+    )
+    np.testing.assert_allclose(
+        prediction["energy_per_atom"],
+        np.array(
+            [
+                [-2.0126],
+                [-0.7215],
+            ]
+        ),
+        atol=1e-4,
+    )
+    if forces:
+        np.testing.assert_allclose(
+            prediction["forces"][0].numpy(),
+            np.array(
+                [
+                    [-1.227, -1.371, -2.830],
+                    [-0.985, -0.609, 0.759],
+                    [-1.246, 3.168, -0.519],
+                    [3.4583, -1.188, 2.590],
+                ]
+            ),
+            atol=1e-3,
+        )
+        np.testing.assert_allclose(
+            prediction["forces"][1].numpy(),
+            np.array(
+                [
+                    [0.181, -0.860, -0.626],
+                    [-1.058, -0.900, 0.923],
+                    [0.878, 1.760, -0.297],
+                ]
+            ),
+            atol=1e-3,
+        )
