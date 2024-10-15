@@ -96,14 +96,17 @@ def test_model_forces_numerically(model_class, params, hyperparams):
     model = model_class(atom_types=["Ni", "Pt"], build_forces=True)
     forces = model({"positions": xyzs, "types": types})["forces"]
 
+    @tf.function(input_signature=(tf.TensorSpec(shape=[3 * N], dtype=tf.float32),))
     def fun(x):
+        print("tracing with", x)
         # numdifftools flattens the vector x so it needs to be reshaped here
-        xyzs = tf.RaggedTensor.from_tensor(x.reshape(1, N, 3), lengths=[N])
+        xyzs = tf.RaggedTensor.from_tensor(tf.reshape(x, (1, N, 3)), lengths=[N])
         # numdifftools expects a scalar function:
         return model({"positions": xyzs, "types": types})["energy"][0, 0]
 
     # Force is the negative gradient
-    num_forces = -nd.Gradient(fun)(xyzs.to_tensor().numpy()).reshape(1, N, 3)
+    x0 = xyzs.to_tensor().numpy()
+    num_forces = -nd.Gradient(fun)(x0).reshape(1, N, 3)
 
     np.testing.assert_allclose(forces.to_tensor().numpy(), num_forces, atol=1e-2)
 
