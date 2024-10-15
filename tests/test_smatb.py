@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 from mleam.models import SMATB
 from mleam.input_pipeline import fcc_bulk_curve
+from mleam.preprocessing import preprocess_inputs_ragged
 
 
 @pytest.fixture
@@ -149,7 +150,8 @@ def test_versus_ferrando_code(params, resource_path_root):
     ],
 )
 @pytest.mark.parametrize("forces", [False, True])
-def test_body_methods(method, forces, params):
+@pytest.mark.parametrize("preprocessed_input", [False, True])
+def test_body_methods(method, forces, params, preprocessed_input):
     xyzs = tf.ragged.constant(
         [
             [
@@ -174,13 +176,28 @@ def test_body_methods(method, forces, params):
         ragged_rank=1,
     )
 
+    if preprocessed_input:
+        types, pair_types, distances, dr_dx, j_indices = preprocess_inputs_ragged(
+            xyzs, types, 2
+        )
+        inputs = {
+            "types": types,
+            "pair_types": pair_types,
+            "distances": distances,
+            "dr_dx": dr_dx,
+            "j_indices": j_indices,
+        }
+    else:
+        inputs = {"positions": xyzs, "types": types}
+
     model = SMATB(
         ["Ni", "Pt"],
         params=params,
         build_forces=forces,
+        preprocessed_input=preprocessed_input,
         method=method,
     )
-    prediction = model({"positions": xyzs, "types": types})
+    prediction = model(inputs)
 
     np.testing.assert_allclose(
         prediction["energy"],
