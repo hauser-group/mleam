@@ -2,7 +2,7 @@ import pytest
 import json
 import numpy as np
 import tensorflow as tf
-from mleam.data_prep import (
+from mleam.input_pipeline import (
     dataset_from_json,
     preprocessed_dataset_from_json,
     descriptor_dataset_from_json,

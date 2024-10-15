@@ -3,7 +3,7 @@ import json
 import numpy as np
 import tensorflow as tf
 from mleam.models import SMATB
-from mleam.data_prep import fcc_bulk_curve
+from mleam.input_pipeline import fcc_bulk_curve
 
 
 @pytest.fixture
