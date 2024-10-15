@@ -193,13 +193,11 @@ class EAMPotential(tf.keras.Model):
         }
         return pair_potentials, pair_rho, embedding_functions, offsets
 
-    @tf.function
     def call(self, inputs):
         if self.preprocessed_input:
             return self.shallow_call(inputs)
         return self.deep_call(inputs)
 
-    @tf.function
     def deep_call(self, inputs):
         if self.build_forces:
             types, pair_types, distances, dr_dx, j_indices = preprocess_inputs_ragged(
@@ -219,7 +217,6 @@ class EAMPotential(tf.keras.Model):
         )
         return self.main_body_no_forces(types, distances, pair_types)
 
-    @tf.function
     def shallow_call(self, inputs):
         types = inputs["types"]
         distances = inputs["distances"]
@@ -233,7 +230,6 @@ class EAMPotential(tf.keras.Model):
             )
         return self.main_body_no_forces(types, distances, pair_types)
 
-    @tf.function
     def main_body_no_forces(self, types, distances, pair_types):
         """Calculates the energy per atom by calling the main body"""
         if self.method == "partition_stitch":
@@ -263,7 +259,6 @@ class EAMPotential(tf.keras.Model):
 
         return {"energy": energy, "energy_per_atom": energy_per_atom}
 
-    @tf.function
     def main_body_with_forces(self, types, distances, pair_types, dr_dx, j_indices):
         """Calculates the energy per atom and the derivative of the total
         energy with respect to the distances
@@ -288,7 +283,6 @@ class EAMPotential(tf.keras.Model):
 
         return results
 
-    @tf.function
     def body_where(self, types, distances, pair_types):
         """"""
         rho = tf.zeros_like(distances)
@@ -327,7 +321,6 @@ class EAMPotential(tf.keras.Model):
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
 
-    @tf.function
     def body_dense_where(self, types, distances, pair_types):
         """"""
         rho = tf.zeros_like(distances)
@@ -363,7 +356,6 @@ class EAMPotential(tf.keras.Model):
             a.nested_row_splits[:-1],
         )
 
-    @tf.function
     def body_partition_stitch(self, types, distances, pair_types):
         """main body using dynamic_partition and dynamic_stitch methods"""
         pair_type_indices = tf.dynamic_partition(
@@ -456,7 +448,6 @@ class EAMPotential(tf.keras.Model):
             name="energy",  # Sum over atoms i.
         )
 
-    @tf.function
     def body_gather_scatter(self, types, distances, pair_types):
         """main body using gather and scatter methods"""
         phi = tf.zeros_like(distances.flat_values)

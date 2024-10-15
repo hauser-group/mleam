@@ -40,7 +40,6 @@ class BehlerParrinello(tf.keras.Model):
 
         self._set_inputs(inputs)
 
-    @tf.function
     def call(self, inputs):
         types = inputs["types"]
         Gs = inputs["Gs"]
@@ -50,7 +49,6 @@ class BehlerParrinello(tf.keras.Model):
             return self.main_body_with_forces(types, Gs, dGs)
         return self.main_body_no_forces(types, Gs)
 
-    @tf.function
     def main_body_no_forces(self, types, Gs):
         """Calculates the energy per atom by calling body_partition_stitch()"""
         energy = self.body_partition_stitch(types, Gs)
@@ -63,7 +61,6 @@ class BehlerParrinello(tf.keras.Model):
 
         return {"energy": energy, "energy_per_atom": energy_per_atom}
 
-    @tf.function
     def main_body_with_forces(self, types, Gs, dGs):
         """Calculates the energy per atom and the derivative of the total
         energy with respect to the distances
@@ -94,7 +91,6 @@ class BehlerParrinello(tf.keras.Model):
         )
         return {"energy": energy, "energy_per_atom": energy_per_atom, "forces": forces}
 
-    @tf.function
     def body_partition_stitch(self, types, Gs):
         """Returns the total energy"""
         # Partition Gs according to their atom type.
