@@ -486,12 +486,13 @@ class EAMPotential(tf.keras.Model):
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
         sum_rho = tf.math.maximum(sum_rho, 1e-30)
-        for i, t in enumerate(self.atom_types):
-            indices = tf.where(tf.equal(types, i).flat_values)[:, 0]
+        for t in self.atom_types:
+            indices = tf.where(tf.equal(types, self.type_dict[t]).flat_values)[:, 0]
+            sum_rho_i = tf.gather(sum_rho, indices)
             atomic_energies = tf.tensor_scatter_nd_add(
                 atomic_energies,
                 tf.expand_dims(indices, -1),
-                self.embedding_functions[t](tf.gather(sum_rho, indices)),
+                self.embedding_functions[t](sum_rho_i) + self.offsets[t](sum_rho_i),
             )
         # Reshape to ragged
         atomic_energies = tf.RaggedTensor.from_row_splits(
