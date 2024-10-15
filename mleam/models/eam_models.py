@@ -55,7 +55,6 @@ class EAMPotential(tf.keras.Model):
         preprocessed_input=False,
         cutoff=None,
         method="partition_stitch",
-        force_method="old",
         **kwargs,
     ):
         """
@@ -284,7 +283,7 @@ class EAMPotential(tf.keras.Model):
                 ),
                 distances.row_splits,
             )
-            - tf.reduce_sum(dE_dr * dr_dx, axis=-2, name="dE_dr_times_dr_dx_sum_j")
+            - self._sum_inner_most_ragged(dE_dr * dr_dx, name="dE_dr_times_dr_dx_sum_j")
         )
 
         return results
@@ -357,10 +356,11 @@ class EAMPotential(tf.keras.Model):
         # Sum over atoms i
         return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
 
-    def _custom_ragged_sum(self, a, name=None):
-        return tf.RaggedTensor.from_row_splits(
-            tf.math.segment_sum(a.flat_values, a.nested_value_rowids()[1], name=name),
-            a.row_splits,
+    @staticmethod
+    def _sum_inner_most_ragged(a, name=None):
+        return tf.RaggedTensor.from_nested_row_splits(
+            tf.math.segment_sum(a.flat_values, a.nested_value_rowids()[-1], name=name),
+            a.nested_row_splits[:-1],
         )
 
     @tf.function
@@ -408,8 +408,13 @@ class EAMPotential(tf.keras.Model):
         )
 
         # Sum over atoms j
-        sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho")
-        sum_phi = tf.reduce_sum(phi, axis=-2, name="sum_phi")
+        sum_rho = self._sum_inner_most_ragged(rho, name="sum_rho")
+        axis_1_rowids, axis_2_rowids = phi.nested_value_rowids()
+        double_sum_phi = tf.math.segment_sum(
+            phi.flat_values,
+            tf.gather(axis_1_rowids, axis_2_rowids),
+            name="double_sum_phi",
+        )
 
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
@@ -438,16 +443,18 @@ class EAMPotential(tf.keras.Model):
             type_indices, embedding_energies, name="embedding_energies"
         )
 
-        atomic_energies = 0.5 * sum_phi.flat_values + embedding_energies
         # Reshape to ragged: (N_structure, N_atoms, 1)
-        atomic_energies = tf.RaggedTensor.from_row_splits(
-            atomic_energies,
+        embedding_energies = tf.RaggedTensor.from_row_splits(
+            embedding_energies,
             types.row_splits,
             name="atomic_energies",
             validate=False,
         )
-        # Sum over atoms i.
-        return tf.reduce_sum(atomic_energies, axis=-2, name="energy")
+
+        return 0.5 * double_sum_phi + self._sum_inner_most_ragged(
+            embedding_energies,
+            name="energy",  # Sum over atoms i.
+        )
 
     @tf.function
     def body_gather_scatter(self, types, distances, pair_types):
@@ -474,8 +481,8 @@ class EAMPotential(tf.keras.Model):
         phi = tf.RaggedTensor.from_nested_row_splits(phi, distances.nested_row_splits)
         rho = tf.RaggedTensor.from_nested_row_splits(rho, distances.nested_row_splits)
         # Sum over atoms j and flatten again
-        atomic_energies = 0.5 * tf.reduce_sum(phi, axis=-2).flat_values
-        sum_rho = tf.reduce_sum(rho, axis=-2).flat_values
+        atomic_energies = 0.5 * tf.reduce_sum(phi, axis=-2, name="sum_phi").flat_values
+        sum_rho = tf.reduce_sum(rho, axis=-2, name="sum_rho").flat_values
         # Make sure that sum_rho is never exactly zero since this leads to
         # problems in the gradient of the square root embedding function
         sum_rho = tf.math.maximum(sum_rho, 1e-30)
