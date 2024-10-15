@@ -115,7 +115,6 @@ def preprocessed_dataset_from_json(
 
     if forces:
 
-        @tf.function
         def input_transform(inp):
             types, pair_types, r, dr_dx, j_indices = preprocess_inputs_ragged(
                 inp["positions"], inp["types"], len(type_dict), cutoff
@@ -129,7 +128,6 @@ def preprocessed_dataset_from_json(
             )
     else:
 
-        @tf.function
         def input_transform(inp):
             types, pair_types, r = preprocess_inputs_ragged_no_force(
                 inp["positions"], inp["types"], len(type_dict), cutoff
