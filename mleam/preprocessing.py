@@ -40,7 +40,7 @@ def preprocess_inputs_ragged(xyzs, types, n_types, cutoff=np.inf):
         tf.greater(distances[..., 0], 0.0),
     )
 
-    # Ideally this should not rag along the first atomic index unless
+    # TODO: Ideally this should not rag along the first atomic index unless
     # necessary...
     distances = tf.ragged.boolean_mask(distances, mask)
     pair_types = tf.ragged.boolean_mask(pair_types, mask)
