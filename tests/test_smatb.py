@@ -87,6 +87,34 @@ def test_versus_lammps(resource_path_root, params):
     np.testing.assert_allclose(prediction["forces"].numpy()[0], forces_ref, atol=1e-5)
 
 
+@pytest.mark.parametrize(
+    "a",
+    [
+        tf.ragged.constant([[], [2, 3], [1]], ragged_rank=1),
+        tf.ragged.constant([[[]], [[2], [3]], [[1]]], ragged_rank=2),
+        tf.ragged.constant(
+            [[[1.0, 2.0]], [[2.0, 1.0], [3.0, 3.0]], [[1.0, 0.0]]], ragged_rank=1
+        ),
+        tf.ragged.constant(
+            [[[[1.0, 2.0]], [[1.0, 2.0]]], [[[2.0, 1.0], [3.0, 3.0]]], [[[1.0, 0.0]]]],
+            ragged_rank=2,
+        ),
+    ],
+)
+def test_custom_ragged_sum(a):
+    trial = SMATB._sum_inner_most_ragged(a)
+    # Find the inner most ragged dim:
+    axis = int(np.where([ax is None for ax in a.shape])[0][-1])
+    ref = tf.reduce_sum(a, axis=axis)
+
+    assert type(trial) is type(ref)
+    assert trial.shape == ref.shape
+    if isinstance(trial, tf.RaggedTensor):
+        assert trial.to_list() == ref.to_list()
+    else:
+        np.testing.assert_allclose(trial, ref)
+
+
 def test_versus_ferrando_code(params, resource_path_root):
     with open(resource_path_root / "test_data.json", "r") as fin:
         data = json.load(fin)
