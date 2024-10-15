@@ -342,7 +342,6 @@ def test_smatb_dense_input(method, forces, params):
         params=params,
         build_forces=forces,
         method=method,
-        ragged_inputs=True,
     )
     prediction = model({"positions": xyzs, "types": types})
 
