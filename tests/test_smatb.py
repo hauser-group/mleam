@@ -145,7 +145,7 @@ def test_versus_ferrando_code(params, resource_path_root):
         "partition_stitch",
         "gather_scatter",
         "where",
-        # "dense_where",
+        "dense_where",
     ],
 )
 @pytest.mark.parametrize("forces", [False, True])
@@ -326,7 +326,7 @@ def test_load_smatb_model(resource_path_root):
         "partition_stitch",
         "gather_scatter",
         "where",
-        # "dense_where",
+        "dense_where",
     ],
 )
 @pytest.mark.parametrize("forces", [False, True])
