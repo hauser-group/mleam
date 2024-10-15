@@ -1,5 +1,4 @@
 import pytest
-import unittest
 import numpy as np
 import tensorflow as tf
 from mleam.models import (
@@ -8,23 +7,6 @@ from mleam.models import (
     FinnisSinclair,
     Johnson,
     DoubleExp,
-    ExtendedEmbeddingModel,
-    ExtendedEmbeddingV2Model,
-    ExtendedEmbeddingV3Model,
-    ExtendedEmbeddingV4Model,
-    NNEmbeddingModel,
-    NNRhoModel,
-    RhoTwoExpModel,
-    NNRhoExpModel,
-    ExtendedEmbeddingRhoTwoExpModel,
-    ExtendedEmbeddingV3RhoTwoExpModel,
-    ExtendedEmbeddingV4RhoTwoExpModel,
-    NNEmbeddingNNRhoModel,
-    NNEmbeddingNNRhoExpModel,
-    CommonNNEmbeddingModel,
-    CommonNNEmbeddingNNRhoModel,
-    CommonExtendedEmbeddingV4Model,
-    CommonExtendedEmbeddingV4RhoTwoExpModel,
 )
 import numdifftools as nd
 
