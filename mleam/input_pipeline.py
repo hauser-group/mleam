@@ -7,7 +7,11 @@ from mleam.preprocessing import (
 )
 
 
-def _output_dataset_from_json(data, forces=False, floatx=tf.float32):
+def _output_dataset_from_dict(
+    data, forces=False, floatx=tf.float32, energy_offsets=None
+):
+    if energy_offsets is None:
+        energy_offsets = {"Ni": -1363.5012992109332, "Pt": -983.274660448409}
     output_types = {"energy": floatx, "energy_per_atom": floatx}
     output_shapes = {
         "energy": tf.TensorShape([1]),
@@ -16,11 +20,12 @@ def _output_dataset_from_json(data, forces=False, floatx=tf.float32):
     if forces:
 
         def generator():
-            for e, sym, force in zip(
-                data["e_dft_bond"], data["symbols"], data["forces_dft"]
+            for e, symbols, force in zip(
+                data["e_dft_tot"], data["symbols"], data["forces_dft"]
             ):
+                e -= sum([energy_offsets[t] for t in symbols])
                 energy = tf.expand_dims(tf.constant(e, dtype=floatx), axis=-1)
-                N = len(sym)
+                N = len(symbols)
                 energy_per_atom = energy / N
                 yield {
                     "energy": energy,
@@ -33,9 +38,10 @@ def _output_dataset_from_json(data, forces=False, floatx=tf.float32):
     else:
 
         def generator():
-            for e, sym in zip(data["e_dft_bond"], data["symbols"]):
+            for e, symbols in zip(data["e_dft_tot"], data["symbols"]):
+                e -= sum([energy_offsets[t] for t in symbols])
                 energy = tf.expand_dims(tf.constant(e, dtype=floatx), axis=-1)
-                N = len(sym)
+                N = len(symbols)
                 energy_per_atom = energy / N
                 yield {
                     "energy": energy,
@@ -48,6 +54,7 @@ def _output_dataset_from_json(data, forces=False, floatx=tf.float32):
 def dataset_from_json(
     path,
     type_dict,
+    energy_offsets=None,
     forces=True,
     batch_size=None,
     floatx=tf.float32,
@@ -74,7 +81,9 @@ def dataset_from_json(
         }
     )
 
-    output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
+    output_dataset = _output_dataset_from_dict(
+        data, forces=forces, floatx=floatx, energy_offsets=energy_offsets
+    )
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
     dataset = dataset.ragged_batch(batch_size=batch_size)
@@ -86,6 +95,7 @@ def preprocessed_dataset_from_json(
     path,
     type_dict,
     cutoff=10.0,
+    energy_offsets=None,
     forces=True,
     batch_size=None,
     floatx=tf.float32,
@@ -142,8 +152,8 @@ def preprocessed_dataset_from_json(
         batch_size=batch_size, name="batching"
     ).map(input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
-    output_dataset = _output_dataset_from_json(
-        data, forces=forces, floatx=floatx
+    output_dataset = _output_dataset_from_dict(
+        data, forces=forces, floatx=floatx, energy_offsets=energy_offsets
     ).ragged_batch(batch_size=batch_size, name="batching")
 
     dataset = (
@@ -245,6 +255,7 @@ def preprocessed_dummy_dataset(
 def descriptor_dataset_from_json(
     path,
     descriptor_set,
+    energy_offsets=None,
     forces=True,
     batch_size=None,
     floatx=tf.float32,
@@ -304,7 +315,9 @@ def descriptor_dataset_from_json(
 
     input_dataset = tf.data.Dataset.from_generator(gen, input_types, input_shapes)
 
-    output_dataset = _output_dataset_from_json(data, forces=forces, floatx=floatx)
+    output_dataset = _output_dataset_from_dict(
+        data, forces=forces, floatx=floatx, energy_offsets=energy_offsets
+    )
 
     dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
     dataset = dataset.ragged_batch(batch_size=batch_size)

@@ -7,6 +7,7 @@ from mleam.input_pipeline import (
     preprocessed_dataset_from_json,
     descriptor_dataset_from_json,
     preprocessed_dummy_dataset,
+    _output_dataset_from_dict,
 )
 from itertools import product
 
@@ -23,7 +24,7 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx, forces):
         cutoff=5.0,
         forces=forces,
     )
-    inputs, outputs = next(iter(dataset))
+    inputs, _ = next(iter(dataset))
 
     assert inputs["types"].ragged_rank == 1
     # assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
@@ -48,16 +49,67 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx, forces):
         assert inputs["dr_dx"].dtype == floatx
         assert inputs["dr_dx"].shape == (4, None, None, 3)
 
+
+@pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
+@pytest.mark.parametrize("forces", [True, False])
+def test_dataset_output_from_dict(resource_path_root, floatx, forces, rtol=1e-5):
+    with open(resource_path_root / "test_data.json", "r") as fin:
+        data = json.load(fin)
+
+    dataset = _output_dataset_from_dict(
+        data,
+        forces=forces,
+        floatx=floatx,
+    )
+    dataset = dataset.ragged_batch(batch_size=4)
+    outputs = next(iter(dataset))
+
     assert outputs["energy"].shape == (4, 1)
     assert outputs["energy"].dtype == floatx
+    np.testing.assert_allclose(
+        outputs["energy"],
+        np.array(
+            [
+                -149.626757,
+                -156.528134,
+                -156.019539,
+                -157.50149,
+            ]
+        ).reshape(-1, 1),
+        rtol=rtol,
+    )
 
     assert outputs["energy_per_atom"].shape == (4, 1)
     assert outputs["energy_per_atom"].dtype == floatx
+    np.testing.assert_allclose(
+        outputs["energy_per_atom"],
+        np.array(
+            [
+                -3.937546,
+                -4.119161,
+                -4.105777,
+                -4.144776,
+            ]
+        ).reshape(-1, 1),
+        rtol=rtol,
+    )
 
     if forces:
         # assert tuple(outputs["forces"].bounding_shape()) == (4, 38, 3)
         assert outputs["forces"].dtype == floatx
         assert outputs["forces"].shape == (4, None, 3)
+        np.testing.assert_allclose(
+            outputs["forces"].to_tensor()[:, 0],
+            np.array(
+                [
+                    [0.151695, 0.138809, 0.571788],
+                    [-0.921326, 0.636308, 0.516866],
+                    [0.272931, -0.143648, 0.028825],
+                    [-0.093672, -0.089866, 0.459556],
+                ]
+            ),
+            rtol=rtol,
+        )
 
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
