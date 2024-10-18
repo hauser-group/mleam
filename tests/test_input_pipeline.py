@@ -8,6 +8,7 @@ from mleam.input_pipeline import (
     descriptor_dataset_from_json,
     preprocessed_dummy_dataset,
     _output_dataset_from_dict,
+    fcc_bulk_curve,
 )
 from itertools import product
 
@@ -354,3 +355,32 @@ def test_descriptor_dataset_from_json(resource_path_root, floatx):
     assert tuple(inputs["dGs"].bounding_shape().numpy()) == (4, 38, 14, 38, 3)
     assert inputs["dGs"].dtype == floatx
     np.testing.assert_allclose(inputs["dGs"].to_list(), ref_data["dGs"], atol=1e-6)
+
+
+def test_fcc_bulk_curve():
+    type_dict = {"Ni": 0, "Pt": 1}
+    a_vec = np.linspace(2.5, 3.5, 5)
+    dataset = fcc_bulk_curve(type_dict, "Pt", a_vec)
+    inputs = next(iter(dataset))
+
+    assert inputs["types"].to_list() == [[[1]]] * 5
+    assert inputs["pair_types"].to_list() == [[[[2]] * 78]] * 5
+
+    print(inputs["distances"].bounding_shape())
+    # print(inputs["distances"].to_list)
+    np.testing.assert_allclose(
+        inputs["distances"].numpy(),
+        np.concatenate(
+            [
+                np.tile(a_vec[:, np.newaxis] * np.sqrt(1 / 2), (1, 12)),
+                np.tile(a_vec[:, np.newaxis] * np.sqrt(2 / 2), (1, 6)),
+                np.tile(a_vec[:, np.newaxis] * np.sqrt(3 / 2), (1, 24)),
+                np.tile(a_vec[:, np.newaxis] * np.sqrt(4 / 2), (1, 12)),
+                np.tile(a_vec[:, np.newaxis] * np.sqrt(5 / 2), (1, 24)),
+            ],
+            axis=1,
+        )[:, np.newaxis, :, np.newaxis],
+    )
+    np.testing.assert_allclose(
+        inputs["dr_dx"].numpy(), np.zeros_like(inputs["dr_dx"].numpy())
+    )
