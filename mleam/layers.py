@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from mleam.constants import InputNormType
 
@@ -245,16 +246,13 @@ class BaseCubicSpline(tf.keras.layers.Layer):
         return tf.reshape(spline_value, (-1, 1))
 
 
-class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
+class CubicHermiteSpline(tf.keras.layers.Layer):
     def __init__(
         self,
         x,
         y=None,
-        dy=[0, 0],
-        dy_trainable=True,
         x_name="x",
         y_name="y",
-        dy_name="dy",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -276,6 +274,53 @@ class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
             if y is None
             else tf.constant_initializer(y),
         )
+
+    def call(self, x_new):
+        """
+        Evaluate the spline values at x_new using the coefficients.
+        """
+        x_new = tf.squeeze(x_new)
+        y, dy = self.compute_coefficients()
+
+        # Find the interval where each x_new belongs
+        idx = tf.searchsorted(self.x, x_new) - 1
+        # To enable extrapolation use the edge polynomials whenever
+        # the index is < 0 or > n - 1.
+        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
+
+        # Get corresponding h values for each x_new
+        h = tf.gather(self.x[1:] - self.x[:-1], idx)
+
+        # Compute spline components
+        t = (x_new - tf.gather(self.x, idx)) / h
+
+        y_left = tf.gather(y, idx)
+        y_right = tf.gather(y, idx + 1)
+        dy_left = tf.gather(dy, idx)
+        dy_right = tf.gather(dy, idx + 1)
+
+        # Compute spline value using the cubic spline formula
+        spline_value = (
+            (2 * (y_left - y_right) + h * (dy_left + dy_right)) * t**3
+            + (3 * (-y_left + y_right) + h * (-2 * dy_left - dy_right)) * t**2
+            + h * dy_left * t
+            + y_left
+        )
+
+        return tf.reshape(spline_value, (-1, 1))
+
+
+class ClampedCubicHermiteSpline(CubicHermiteSpline):
+    def __init__(
+        self,
+        *args,
+        dy=[0, 0],
+        dy_trainable=True,
+        dy_name="dy",
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
         self.dy = self.add_weight(
             shape=(2,),
             name=dy_name,
@@ -285,19 +330,16 @@ class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
             else tf.constant_initializer(dy),
         )
 
-        # Compute the distances between the x points (h_i = x_{i+1} - x_i)
-        # NOTE: no equivalent for np.diff in tensorflow
-        self.h = self.x[1:] - self.x[:-1]
-
     def _construct_tridiagonal_matrix(self):
         # Last element of superdiag is ignored
-        superdiag = tf.concat([tf.zeros((1,)), self.h[:-1], tf.zeros((1,))], axis=0)
+        h = self.x[1:] - self.x[:-1]
+        superdiag = tf.concat([tf.zeros((1,)), h[:-1], tf.zeros((1,))], axis=0)
         maindiag = tf.concat(
-            [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
+            [tf.ones((1,)), 2 * (h[:-1] + h[1:]), tf.ones((1,))],
             axis=0,
         )
         # First element of subdiag is ignored
-        subdiag = tf.concat([tf.zeros((1,)), self.h[1:], tf.zeros((1,))], axis=0)
+        subdiag = tf.concat([tf.zeros((1,)), h[1:], tf.zeros((1,))], axis=0)
         return tf.stack([superdiag, maindiag, subdiag], axis=0)
 
     def _construct_rhs(self):
@@ -305,7 +347,7 @@ class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
         Construct the right-hand side vector b for the clamped cubic spline system.
         """
         y = self.y
-        h = self.h
+        h = self.x[1:] - self.x[:-1]
         b = tf.concat(
             [
                 self.dy[:1],
@@ -329,41 +371,7 @@ class ClampedHermiteCubicSpline(tf.keras.layers.Layer):
         A = self._construct_tridiagonal_matrix()
         b = self._construct_rhs()
 
-        return tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
-
-    def call(self, x_new):
-        """
-        Evaluate the spline values at x_new using the coefficients.
-        """
-        x_new = tf.squeeze(x_new)
-        dy = self.compute_coefficients()
-
-        # Find the interval where each x_new belongs
-        idx = tf.searchsorted(self.x, x_new) - 1
-        # To enable extrapolation use the edge polynomials whenever
-        # the index is < 0 or > n - 1.
-        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
-
-        # Get corresponding h values for each x_new
-        h = tf.gather(self.h, idx)
-
-        # Compute spline components
-        t = (x_new - tf.gather(self.x, idx)) / h
-
-        y_left = tf.gather(self.y, idx)
-        y_right = tf.gather(self.y, idx + 1)
-        dy_left = tf.gather(dy, idx)
-        dy_right = tf.gather(dy, idx + 1)
-
-        # Compute spline value using the cubic spline formula
-        spline_value = (
-            (2 * (y_left - y_right) + h * (dy_left + dy_right)) * t**3
-            + (3 * (-y_left + y_right) + h * (-2 * dy_left - dy_right)) * t**2
-            + h * dy_left * t
-            + y_left
-        )
-
-        return tf.reshape(spline_value, (-1, 1))
+        return self.y, tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
 
 
 class NaturalQuinticSpline(tf.keras.layers.Layer):
@@ -503,7 +511,7 @@ class NaturalQuinticSpline(tf.keras.layers.Layer):
         return tf.reshape(spline_value, (-1, 1))
 
 
-class FittedQuinticSpline(tf.keras.layers.Layer):
+class QuinticHermiteSpline(tf.keras.layers.Layer):
     def __init__(
         self,
         x,
@@ -529,36 +537,64 @@ class FittedQuinticSpline(tf.keras.layers.Layer):
             trainable=False,
             initializer=tf.constant_initializer(x),
         )
-        self.y = self.add_weight(
-            shape=x.shape,
+
+        y = np.zeros(len(x)) if y is None else y
+        dy = np.zeros(len(x)) if dy is None else dy
+        ddy = np.zeros(len(x)) if ddy is None else ddy
+
+        init_function_values = np.stack([y, dy, ddy], axis=0)
+        self.function_values = self.add_weight(
+            shape=(3, len(x)),
             name=y_name,
             trainable=True,
-            initializer=tf.zeros_initializer()
-            if y is None
-            else tf.constant_initializer(y),
+            initializer=tf.constant_initializer(init_function_values),
+            regularizer=self._curvature_regularizer,
         )
-        self.dy = self.add_weight(
-            shape=x.shape,
-            name=dy_name,
-            trainable=True,
-            initializer=tf.zeros_initializer()
-            if dy is None
-            else tf.constant_initializer(dy),
+
+    def _get_coefficients(self):
+        return self.function_values
+
+    def _curvature_regularizer(self, x):
+        h = self.x[1:] - self.x[:-1]
+        y, dy, ddy = x
+
+        reg = tf.reduce_sum(
+            h**4 / 35 * (3 * ddy[:-1] ** 2 + ddy[:-1] * ddy[1:] + 3 * ddy[1:] ** 2)
+            + 2
+            * h**3
+            / 35
+            * (
+                11 * ddy[:-1] * dy[:-1]
+                + 4 * ddy[:-1] * dy[1:]
+                - 4 * ddy[1:] * dy[:-1]
+                - 11 * ddy[1:] * dy[1:]
+            )
+            + 6
+            * h**2
+            / 35
+            * (
+                5
+                * (
+                    ddy[:-1] * y[:-1]
+                    - ddy[:-1] * y[1:]
+                    - ddy[1:] * y[:-1]
+                    + ddy[1:] * y[1:]
+                )
+                + 32 * dy[:-1] ** 2
+                + 36 * dy[:-1] * dy[1:]
+                + 32 * dy[1:] ** 2
+            )
+            + 120 * h / 7 * (dy[:-1] + dy[1:]) * (y[:-1] - y[1:])
+            + 120 / 7 * (y[:-1] - y[1:]) ** 2
         )
-        self.ddy = self.add_weight(
-            shape=x.shape,
-            name=ddy_name,
-            trainable=True,
-            initializer=tf.zeros_initializer()
-            if ddy is None
-            else tf.constant_initializer(ddy),
-        )
+        return reg
 
     def call(self, x_new):
         """
         Evaluate the spline values at x_new using the coefficients.
         """
         x_new = tf.squeeze(x_new)
+        y, dy, ddy = self._get_coefficients()
 
         # Find the interval where each x_new belongs
         idx = tf.searchsorted(self.x, x_new) - 1
@@ -572,12 +608,12 @@ class FittedQuinticSpline(tf.keras.layers.Layer):
         # Compute spline components
         t = (x_new - tf.gather(self.x, idx)) / h
 
-        y_left = tf.gather(self.y, idx)
-        y_right = tf.gather(self.y, idx + 1)
-        dy_left = tf.gather(self.dy, idx)
-        dy_right = tf.gather(self.dy, idx + 1)
-        ddy_left = tf.gather(self.ddy, idx)
-        ddy_right = tf.gather(self.ddy, idx + 1)
+        y_left = tf.gather(y, idx)
+        y_right = tf.gather(y, idx + 1)
+        dy_left = tf.gather(dy, idx)
+        dy_right = tf.gather(dy, idx + 1)
+        ddy_left = tf.gather(ddy, idx)
+        ddy_right = tf.gather(ddy, idx + 1)
 
         # Compute spline value using the quintic spline formula
         spline_value = (
@@ -897,10 +933,10 @@ class NaturalQuinticSplinePhi(PairPhi, NaturalQuinticSpline):
         )
 
 
-class FittedQuinticSplinePhi(PairPhi, FittedQuinticSpline):
+class FittedQuinticSplinePhi(PairPhi, QuinticHermiteSpline):
     def __init__(self, pair_type, r_k, a_k=None, da_k=None, dda_k=None, **kwargs):
         self.pair_type = pair_type
-        FittedQuinticSpline.__init__(
+        QuinticHermiteSpline.__init__(
             self,
             x=r_k,
             y=a_k,
@@ -1077,10 +1113,10 @@ class NaturalQuinticSplineRho(PairRho, NaturalQuinticSpline):
         )
 
 
-class FittedQuinticSplineRho(PairRho, FittedQuinticSpline):
+class FittedQuinticSplineRho(PairRho, QuinticHermiteSpline):
     def __init__(self, pair_type, R_k, A_k=None, dA_k=None, ddA_k=None, **kwargs):
         self.pair_type = pair_type
-        FittedQuinticSpline.__init__(
+        QuinticHermiteSpline.__init__(
             self,
             x=R_k,
             y=A_k,
