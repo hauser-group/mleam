@@ -140,7 +140,17 @@ class EAMPotential(tf.keras.Model):
 
     # def get_config(self):
     #     config = super().get_config()
-    #     config.update({"params": self.params, "hyperparams": self.hyperparams})
+    #     config.update(
+    #         {
+    #             "atom_types": self.atom_types,
+    #             "initial_params": self.initial_params,
+    #             "hyperparams": self.hyperparams,
+    #             "build_forces": self.build_forces,
+    #             "preprocessed_input": self.preprocessed_input,
+    #             "cutoff": self.cutoff,
+    #             "method": self.method,
+    #         }
+    #     )
     #     return config
 
     def build(self, input_shape):

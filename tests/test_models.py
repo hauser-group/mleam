@@ -11,7 +11,7 @@ from mleam.models import (
 import numdifftools as nd
 
 models_test_decorator = pytest.mark.parametrize(
-    "model_class, params, hyperparams",
+    "model_class, initial_params, hyperparams",
     [
         (SMATB, {}, {}),
         # TODO: figure out why this assigns different "ids" to the weights in the .h5 file
@@ -25,7 +25,7 @@ models_test_decorator = pytest.mark.parametrize(
 
 
 @models_test_decorator
-def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
+def test_model_save_and_load(model_class, initial_params, hyperparams, tmpdir):
     """Only testing save_weights as standard save does not seem to
     work with ragged output tensors."""
     tf.keras.backend.clear_session()
@@ -41,24 +41,50 @@ def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
         ],
         lengths=[N],
     )
-    types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1)
+    types = tf.ragged.constant([[[0], [1], [0], [1]]], ragged_rank=1, dtype=tf.int32)
 
     atom_types = ["Ni", "Pt"]
-    model = model_class(atom_types, params, hyperparams, build_forces=True)
+    model = model_class(atom_types, initial_params, hyperparams, build_forces=True)
     ref_prediction = model({"positions": xyzs, "types": types})
     ref_e, ref_forces = (
         ref_prediction["energy_per_atom"],
         ref_prediction["forces"],
     )
 
-    model.save_weights(tmpdir / "tmp_model.h5")
+    model.save_weights(tmpdir / "weights.h5")
+    model.save(tmpdir / "model.keras")
 
+    tf.keras.backend.clear_session()
+
+    # Load weights:
     # Build fresh model
-    model = model_class(atom_types, params, hyperparams, build_forces=True)
+    model = model_class(atom_types, initial_params, hyperparams, build_forces=True)
     # Model needs to be called once before loading in order to
     # determine all weight sizes...
     model({"positions": xyzs, "types": types})
-    model.load_weights(tmpdir / "tmp_model.h5")
+    model.load_weights(tmpdir / "weights.h5")
+    new_prediction = model({"positions": xyzs, "types": types})
+    new_e, new_forces = (
+        new_prediction["energy_per_atom"],
+        new_prediction["forces"],
+    )
+
+    np.testing.assert_allclose(new_e.numpy(), ref_e.numpy(), atol=1e-6)
+    np.testing.assert_allclose(
+        new_forces.to_tensor().numpy(),
+        ref_forces.to_tensor().numpy(),
+        atol=1e-6,
+    )
+
+    tf.keras.backend.clear_session()
+
+    # Load full model:
+    model = tf.keras.models.load_model(str(tmpdir / "model.keras"))
+
+    # TODO: enable this
+    # assert model.initial_params == initial_params
+    # assert model.hyperparams == hyperparams
+
     new_prediction = model({"positions": xyzs, "types": types})
     new_e, new_forces = (
         new_prediction["energy_per_atom"],
@@ -76,7 +102,7 @@ def test_model_save_and_load(model_class, params, hyperparams, tmpdir):
 
 
 @models_test_decorator
-def test_model_forces_numerically(model_class, params, hyperparams):
+def test_model_forces_numerically(model_class, initial_params, hyperparams):
     tf.keras.backend.clear_session()
     # Number of atoms
     N = 4
