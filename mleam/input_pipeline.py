@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import json
+from typing import List
 from mleam.preprocessing import (
     preprocess_inputs_ragged,
     preprocess_inputs_ragged_no_force,
@@ -361,4 +362,69 @@ def fcc_bulk_curve(type_dict: dict, atom_type: str, a: np.ndarray = np.array([4.
         batch_size=len(a)
     )
 
+    return input_dataset
+
+
+def ico13_curve(
+    type_dict: dict,
+    atom_types: List[str],
+    r: np.ndarray = np.array([2.5]),
+    cutoff: float = 10.0,
+):
+    assert len(atom_types) == 13
+    N = len(r)
+    # golden ratio phi
+    phi = 0.5 * (1 + np.sqrt(5))
+    # length of the Caretesian basis vectors used:
+    norm = np.sqrt(1 + phi**2)
+
+    int_types = np.array([type_dict[t] for t in atom_types])
+
+    input_dict = {
+        "types": tf.ragged.constant(
+            np.tile(int_types[np.newaxis, :, np.newaxis], (N, 1, 1)),
+            ragged_rank=1,
+            dtype=tf.int32,
+        ),
+        "positions": tf.ragged.constant(
+            r[:, np.newaxis, np.newaxis]
+            * np.array(
+                [
+                    [0.0, 0.0, 0.0],
+                    [0.0, 1.0, phi],
+                    [0.0, 1.0, -phi],
+                    [0.0, -1.0, phi],
+                    [0.0, -1.0, -phi],
+                    [1.0, phi, 0.0],
+                    [1.0, -phi, 0.0],
+                    [-1.0, phi, 0.0],
+                    [-1.0, -phi, 0.0],
+                    [phi, 0.0, 1.0],
+                    [-phi, 0.0, 1.0],
+                    [phi, 0.0, -1.0],
+                    [-phi, 0.0, -1.0],
+                ]
+            )[np.newaxis, ...]
+            / norm,
+            ragged_rank=1,
+        ),
+    }
+
+    def input_transform(inp):
+        types, pair_types, r, dr_dx, j_indices = preprocess_inputs_ragged(
+            inp["positions"], inp["types"], len(type_dict), cutoff
+        )
+        return dict(
+            types=types,
+            pair_types=pair_types,
+            distances=r,
+            dr_dx=dr_dx,
+            j_indices=j_indices,
+        )
+
+    input_dataset = (
+        tf.data.Dataset.from_tensor_slices(input_dict)
+        .ragged_batch(batch_size=N)
+        .map(input_transform)
+    )
     return input_dataset

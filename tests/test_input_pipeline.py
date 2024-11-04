@@ -9,6 +9,7 @@ from mleam.input_pipeline import (
     preprocessed_dummy_dataset,
     _output_dataset_from_dict,
     fcc_bulk_curve,
+    ico13_curve,
 )
 from itertools import product
 
@@ -366,8 +367,6 @@ def test_fcc_bulk_curve():
     assert inputs["types"].to_list() == [[[1]]] * 5
     assert inputs["pair_types"].to_list() == [[[[2]] * 78]] * 5
 
-    print(inputs["distances"].bounding_shape())
-    # print(inputs["distances"].to_list)
     np.testing.assert_allclose(
         inputs["distances"].numpy(),
         np.concatenate(
@@ -383,4 +382,20 @@ def test_fcc_bulk_curve():
     )
     np.testing.assert_allclose(
         inputs["dr_dx"].numpy(), np.zeros_like(inputs["dr_dx"].numpy())
+    )
+
+
+def test_ico13_curve():
+    type_dict = {"Ni": 0, "Pt": 1}
+    r_vec = np.linspace(2.5, 3.5, 5)
+    types = ["Ni"] + ["Pt"] * 12
+    dataset = ico13_curve(type_dict, types, r_vec)
+    inputs = next(iter(dataset))
+
+    int_types = [[type_dict[t]] for t in types]
+
+    assert inputs["types"].to_list() == [int_types] * 5
+    np.testing.assert_allclose(
+        inputs["distances"].numpy()[:, 0],
+        np.tile(r_vec[:, np.newaxis, np.newaxis], (1, 12, 1)),
     )
