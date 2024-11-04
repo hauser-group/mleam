@@ -323,7 +323,7 @@ def test_preprocess_inputs_ragged_ragged_input(ragged_xyzs, ragged_types):
 
     assert j_indices.to_list() == [
         [[1, 2, 3], [0, 2], [0, 1, 3], [0, 2]],
-        [[5, 6], [4, 6], [4, 5]],
+        [[1, 2], [0, 2], [0, 1]],
     ]
 
 
@@ -347,7 +347,7 @@ def test_preprocess_inputs_ragged_padded_input(padded_xyzs, padded_types):
 
     assert j_indices.to_list() == [
         [[1, 2, 3], [0, 2], [0, 1, 3], [0, 2]],
-        [[5, 6], [4, 6], [4, 5]],
+        [[1, 2], [0, 2], [0, 1]],
     ]
 
 

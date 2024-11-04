@@ -297,12 +297,14 @@ class EAMPotential(tf.keras.Model):
             tape.watch(distances)
             results = self.main_body_no_forces(types, distances, pair_types)
 
+        # Add the cumulative number of atoms in the batch to the j_indices
+        batched_j_indices = j_indices + types.row_starts()[:, tf.newaxis, tf.newaxis]
         dE_dr = tape.gradient(results["energy"], distances)
         results["forces"] = -(
             tf.RaggedTensor.from_row_splits(
                 tf.math.unsorted_segment_sum(
                     (dE_dr * dr_dx),
-                    j_indices,
+                    batched_j_indices,
                     distances.row_splits[-1],
                     name="dE_dr_times_dr_dx_sum_i",
                 ),

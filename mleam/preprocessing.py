@@ -17,20 +17,13 @@ def preprocess_inputs_ragged(xyzs, types, n_types, cutoff=np.inf):
 
     types, pair_types, distances, derivative = preprocess_inputs(xyzs, types, n_types)
 
-    # TODO: needs proper explanation ASAP.
-    j_indices = tf.ones_like(xyzs[..., 0], dtype=tf.int64)
+    # This is essentially a range function that works for both ragged and dense inputs
     j_indices = tf.math.cumsum(
-        tf.reduce_sum(
-            j_indices,
-            axis=-1,
-            keepdims=True,
-        ),
-        exclusive=True,
-    ) + tf.math.cumsum(
-        j_indices,
+        tf.ones_like(xyzs[..., 0], dtype=tf.int64),
         axis=-1,
         exclusive=True,
     )
+    # This repeats the j_indices along the second to last axis
     j_indices = tf.expand_dims(j_indices, axis=-2) * tf.expand_dims(
         tf.ones_like(j_indices, dtype=j_indices.dtype), axis=-1
     )
