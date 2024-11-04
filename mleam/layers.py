@@ -96,14 +96,18 @@ class SmoothCutoffFunction(tf.keras.layers.Layer):
 
 
 class OffsetLayer(tf.keras.layers.Layer):
-    def __init__(self, type, trainable=False, **kwargs):
+    def __init__(self, type, trainable=False, l1_reg=None, **kwargs):
         super().__init__(**kwargs)
         self.type = type
+        if l1_reg is not None:
+            l1_reg = tf.keras.regularizers.L1(l1=l1_reg)
+
         self.offset = self.add_weight(
             shape=(1),
             name="%s_offset" % type,
             trainable=trainable,
             initializer=tf.zeros_initializer(),
+            regularizer=l1_reg,
         )
 
     def call(self, inp):

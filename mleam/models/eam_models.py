@@ -188,7 +188,12 @@ class EAMPotential(tf.keras.Model):
                 )
         embedding_functions = {t: self.get_embedding(t) for t in self.atom_types}
         offsets = {
-            t: OffsetLayer(t, self.hyperparams["offset_trainable"], name=f"{t}-offset")
+            t: OffsetLayer(
+                t,
+                trainable=self.hyperparams["offset_trainable"],
+                l1_reg=self.hyperparams.get("offset_l1_reg"),
+                name=f"{t}-offset",
+            )
             for t in self.atom_types
         }
         return pair_potentials, pair_rho, embedding_functions, offsets
