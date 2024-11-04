@@ -121,8 +121,8 @@ class EAMPotential(tf.keras.Model):
                 # comprehension returns an empty list
                 self.cutoff = max(
                     [
-                        initial_params.get(key, 7.5)
-                        for key in initial_params
+                        self.initial_params.get(key, 7.5)
+                        for key in self.initial_params.keys()
                         if key[0] == "cut_b"
                     ]
                     or [7.5]
