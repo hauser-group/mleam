@@ -16,7 +16,9 @@ from itertools import product
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
 @pytest.mark.parametrize("forces", [True, False])
-def test_preprocessed_dataset_from_json(resource_path_root, floatx, forces):
+def test_preprocessed_dataset_from_json(
+    resource_path_root, floatx, forces, rtol=1e-5, atol=1e-6
+):
     type_dict = {"Ni": 0, "Pt": 1}
     dataset = preprocessed_dataset_from_json(
         resource_path_root / "test_data.json",
@@ -25,31 +27,105 @@ def test_preprocessed_dataset_from_json(resource_path_root, floatx, forces):
         floatx=floatx,
         cutoff=5.0,
         forces=forces,
+        shuffle_buffer_size=100,
+        shuffle_seed=0,
     )
-    inputs, _ = next(iter(dataset))
+    inputs, outputs = next(iter(dataset))
 
     assert inputs["types"].ragged_rank == 1
-    # assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
     assert inputs["types"].dtype == tf.int32
     assert inputs["types"].shape == (4, None, 1)
+    np.testing.assert_allclose(inputs["types"].row_lengths().numpy(), [147, 55, 55, 38])
 
-    # NOTE: because of the cutoff we supplied this is not the "expected" (4, 38, 37, 1)
-    # but instead is smaller to optimize the throughput.
     assert inputs["pair_types"].ragged_rank == 2
-    # assert tuple(inputs["pair_types"].bounding_shape().numpy()) == (4, 38, 33, 1)
     assert inputs["pair_types"].dtype == tf.int32
     assert inputs["pair_types"].shape == (4, None, None, 1)
 
     assert inputs["distances"].ragged_rank == 2
-    # assert tuple(inputs["distances"].bounding_shape().numpy()) == (4, 38, 33, 1)
     assert inputs["distances"].dtype == floatx
     assert inputs["distances"].shape == (4, None, None, 1)
+    np.testing.assert_allclose(
+        inputs["distances"][1, 0:3, 0:3, 0].numpy(),
+        np.array(
+            [
+                [4.236714, 4.019963, 2.98717],
+                [3.092563, 4.064307, 4.140191],
+                [4.236714, 2.865811, 4.023477],
+            ]
+        ),
+        rtol=rtol,
+    )
 
     if forces:
         assert inputs["dr_dx"].ragged_rank == 2
         # assert tuple(inputs["dr_dx"].bounding_shape().numpy()) == (4, 38, 38, 3)
         assert inputs["dr_dx"].dtype == floatx
         assert inputs["dr_dx"].shape == (4, None, None, 3)
+
+        np.testing.assert_allclose(
+            inputs["dr_dx"][0, 1, 0:4, :],
+            np.array(
+                [
+                    [0.71961015, 0.43044097, -0.54486861],
+                    [0.16035014, 0.53227601, -0.8312461],
+                    [-0.58401367, 0.80771526, -0.08077185],
+                    [-0.97854147, -0.00867641, -0.20586725],
+                ]
+            ),
+            rtol=rtol,
+            atol=atol,
+        )
+
+        np.testing.assert_allclose(
+            inputs["j_indices"][2, 0:4, 0:3].numpy(),
+            np.array(
+                [
+                    [5, 7, 10],
+                    [2, 8, 9],
+                    [1, 3, 9],
+                    [2, 6, 10],
+                ]
+            ),
+        )
+
+        np.testing.assert_allclose(
+            outputs["forces"][0, 0:3, :],
+            np.array(
+                [
+                    [-0.25553063, -0.15273793, -0.6125229],
+                    [0.14569979, -0.35180147, 0.53064227],
+                    [-0.29970835, 0.50666725, -0.12815252],
+                ]
+            ),
+            rtol=rtol,
+            atol=atol,
+        )
+        np.testing.assert_allclose(
+            outputs["forces"][2, 0:3, :],
+            np.array(
+                [
+                    [-0.29370303, 0.51540951, 0.2199098],
+                    [-0.06078371, 0.23760336, 0.01329723],
+                    [-0.0368781, -0.15473387, -0.4040936],
+                ]
+            ),
+            rtol=rtol,
+            atol=atol,
+        )
+
+    np.testing.assert_allclose(
+        outputs["energy"],
+        np.array(
+            [
+                -647.313848,
+                -234.921643,
+                -235.948136,
+                -157.50149,
+            ]
+        ).reshape(-1, 1),
+        rtol=rtol,
+        atol=atol,
+    )
 
 
 @pytest.mark.parametrize("floatx", [tf.float32, tf.float64])
@@ -289,10 +365,10 @@ def test_dataset_from_json(resource_path_root, floatx):
     )
     inputs, outputs = next(iter(dataset))
 
-    assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 38, 1)
+    assert tuple(inputs["types"].bounding_shape().numpy()) == (4, 147, 1)
     assert inputs["types"].dtype == tf.int32
 
-    assert tuple(inputs["positions"].bounding_shape().numpy()) == (4, 38, 3)
+    assert tuple(inputs["positions"].bounding_shape().numpy()) == (4, 147, 3)
     assert inputs["positions"].dtype == floatx
 
     assert outputs["energy"].shape == (4, 1)
@@ -301,7 +377,7 @@ def test_dataset_from_json(resource_path_root, floatx):
     assert outputs["energy_per_atom"].shape == (4, 1)
     assert outputs["energy_per_atom"].dtype == floatx
 
-    assert tuple(outputs["forces"].bounding_shape()) == (4, 38, 3)
+    assert tuple(outputs["forces"].bounding_shape()) == (4, 147, 3)
     assert outputs["forces"].dtype == floatx
 
 

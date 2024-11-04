@@ -59,6 +59,8 @@ def dataset_from_json(
     forces=True,
     batch_size=None,
     floatx=tf.float32,
+    shuffle_buffer_size=100,
+    shuffle_seed=0,
 ):
     with open(path, "r") as fin:
         data = json.load(fin)
@@ -86,9 +88,13 @@ def dataset_from_json(
         data, forces=forces, floatx=floatx, energy_offsets=energy_offsets
     )
 
-    dataset = tf.data.Dataset.zip((input_dataset, output_dataset))
-    dataset = dataset.ragged_batch(batch_size=batch_size)
-    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    dataset = (
+        tf.data.Dataset.zip((input_dataset, output_dataset))
+        .cache()
+        .shuffle(buffer_size=shuffle_buffer_size, seed=shuffle_seed)
+        .ragged_batch(batch_size=batch_size, name="batching")
+        .prefetch(tf.data.experimental.AUTOTUNE)
+    )
     return dataset
 
 
@@ -100,6 +106,8 @@ def preprocessed_dataset_from_json(
     forces=True,
     batch_size=None,
     floatx=tf.float32,
+    shuffle_buffer_size=100,
+    shuffle_seed=0,
 ):
     with open(path, "r") as fin:
         data = json.load(fin)
@@ -149,17 +157,19 @@ def preprocessed_dataset_from_json(
                 distances=r,
             )
 
-    input_dataset = input_dataset.ragged_batch(
-        batch_size=batch_size, name="batching"
-    ).map(input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    input_dataset = input_dataset.map(
+        input_transform, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
 
     output_dataset = _output_dataset_from_dict(
         data, forces=forces, floatx=floatx, energy_offsets=energy_offsets
-    ).ragged_batch(batch_size=batch_size, name="batching")
+    )
 
     dataset = (
         tf.data.Dataset.zip((input_dataset, output_dataset))
         .cache()
+        .shuffle(buffer_size=shuffle_buffer_size, seed=shuffle_seed)
+        .ragged_batch(batch_size=batch_size, name="batching")
         .prefetch(tf.data.experimental.AUTOTUNE)
     )
 
