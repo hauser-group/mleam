@@ -69,7 +69,7 @@ def test_versus_lammps(resource_path_root, params):
                 sp = line.split()
                 forces_ref.append([float(s) for s in sp[2:5]])
 
-    model = SMATB(["Ni", "Pt"], params=params, build_forces=True)
+    model = SMATB(["Ni", "Pt"], initial_params=params, build_forces=True)
 
     types = tf.expand_dims(tf.ragged.constant([types]), axis=-1)
     positions = tf.ragged.constant([positions], ragged_rank=1)
@@ -131,7 +131,7 @@ def test_versus_ferrando_code(params, resource_path_root):
     )
     positions = tf.ragged.constant(data["positions"], ragged_rank=1)
 
-    model = SMATB(["Ni", "Pt"], params=params, build_forces=False)
+    model = SMATB(["Ni", "Pt"], initial_params=params, build_forces=False)
 
     e_model = model({"types": types, "positions": positions})["energy"]
 
@@ -192,7 +192,7 @@ def test_body_methods(method, forces, params, preprocessed_input):
 
     model = SMATB(
         ["Ni", "Pt"],
-        params=params,
+        initial_params=params,
         build_forces=forces,
         preprocessed_input=preprocessed_input,
         method=method,
@@ -260,7 +260,7 @@ def test_tabulation(params, resource_path_root, tmpdir, atol=1e-4, rtol=1e-2):
         resource_path_root / "LAMMPS_SMATB_reference" / "NiPt.eam.fs"
     )
 
-    model = SMATB(["Ni", "Pt"], params=params)
+    model = SMATB(["Ni", "Pt"], initial_params=params)
     model.tabulate(
         str(tmpdir / "tmp"),
         atomic_numbers=dict(Ni=28, Pt=78),
@@ -314,7 +314,9 @@ def test_load_smatb_model(resource_path_root):
     Ni_bulk_curve = fcc_bulk_curve(type_dict, "Ni", a_vec)
     Pt_bulk_curve = fcc_bulk_curve(type_dict, "Pt", a_vec)
 
-    model = SMATB(["Ni", "Pt"], params={}, build_forces=False, preprocessed_input=True)
+    model = SMATB(
+        ["Ni", "Pt"], initial_params={}, build_forces=False, preprocessed_input=True
+    )
     # Call once to build all layers
     model.predict(Ni_bulk_curve)
     model.load_weights(resource_path_root / "models" / "smatb_reference.h5")
@@ -373,7 +375,7 @@ def test_smatb_dense_input(method, forces, params):
 
     model = SMATB(
         ["Ni", "Pt"],
-        params=params,
+        initial_params=params,
         build_forces=forces,
         method=method,
     )
