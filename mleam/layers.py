@@ -246,6 +246,85 @@ class BaseCubicSpline(tf.keras.layers.Layer):
         return tf.reshape(spline_value, (-1, 1))
 
 
+class NaturalCubicSpline(BaseCubicSpline):
+    def _construct_tridiagonal_matrix(self):
+        """
+        Construct the tridiagonal matrix for the natural cubic spline system.
+        """
+        # Last element of superdiag is ignored
+        superdiag = tf.concat([tf.zeros((1,)), self.h[1:], tf.zeros((1,))], axis=0)
+        maindiag = tf.concat(
+            [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
+            axis=0,
+        )
+        # First element of subdiag is ignored
+        subdiag = tf.concat([tf.zeros((1,)), self.h[:-1], tf.zeros((1,))], axis=0)
+        return tf.stack([superdiag, maindiag, subdiag], axis=0)
+
+    def _construct_rhs(self):
+        """
+        Construct the right-hand side vector b for the natural cubic spline system.
+        """
+        # The zeros at the start and end correspond to the natural spline boundary
+        # conditions
+        return tf.concat(
+            [
+                tf.zeros((1,)),
+                6
+                * (
+                    (self.y[2:] - self.y[1:-1]) / self.h[1:]
+                    - (self.y[1:-1] - self.y[:-2]) / self.h[:-1]
+                ),
+                tf.zeros((1,)),
+            ],
+            axis=0,
+        )
+
+
+class ClampedCubicSpline(BaseCubicSpline):
+    def __init__(self, x, y=None, dy=[0, 0], dy_trainable=True, dy_name="dy", **kwargs):
+        super().__init__(x, y=y, **kwargs)
+        self.dy = self.add_weight(
+            shape=(2,),
+            name=dy_name,
+            trainable=dy_trainable,
+            initializer=tf.zeros_initializer()
+            if dy is None
+            else tf.constant_initializer(dy),
+        )
+
+    def _construct_tridiagonal_matrix(self):
+        """
+        Construct the tridiagonal matrix for the clamped cubic spline system.
+        """
+        # Last element of superdiag is ignored
+        superdiag = tf.concat([self.h, tf.zeros((1,))], axis=0)
+        maindiag = tf.concat(
+            [2 * self.h[:1], 2 * (self.h[:-1] + self.h[1:]), 2 * self.h[-1:]],
+            axis=0,
+        )
+        # First element of subdiag is ignored
+        subdiag = tf.concat([tf.zeros((1,)), self.h], axis=0)
+        return tf.stack([superdiag, maindiag, subdiag], axis=0)
+
+    def _construct_rhs(self):
+        """
+        Construct the right-hand side vector b for the clamped cubic spline system.
+        """
+        y = self.y
+        h = self.h
+        b = tf.concat(
+            [
+                6 * ((y[1] - y[0]) / h[0] - self.dy[:1]),
+                6 * ((y[2:] - y[1:-1]) / h[1:] - (y[1:-1] - y[:-2]) / h[:-1]),
+                6 * (self.dy[-1:] - (y[-1] - y[-2]) / h[-1]),
+            ],
+            axis=0,
+        )
+
+        return b
+
+
 class CubicHermiteSpline(tf.keras.layers.Layer):
     def __init__(
         self,
@@ -372,143 +451,6 @@ class ClampedCubicHermiteSpline(CubicHermiteSpline):
         b = self._construct_rhs()
 
         return self.y, tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
-
-
-class NaturalQuinticSpline(tf.keras.layers.Layer):
-    def __init__(
-        self, x, y=None, dy=None, x_name="x", y_name="y", dy_name="dy", **kwargs
-    ):
-        super().__init__(**kwargs)
-        assert (x[1:] - x[:-1] > 0.0).all()
-        if y is not None:
-            assert len(x) == len(y)
-        if dy is not None:
-            assert len(x) == len(dy)
-
-        self.x = self.add_weight(
-            shape=x.shape,
-            name=x_name,
-            trainable=False,
-            initializer=tf.constant_initializer(x),
-        )
-        self.y = self.add_weight(
-            shape=x.shape,
-            name=y_name,
-            trainable=True,
-            initializer=tf.zeros_initializer()
-            if y is None
-            else tf.constant_initializer(y),
-        )
-        self.dy = self.add_weight(
-            shape=x.shape,
-            name=dy_name,
-            trainable=True,
-            initializer=tf.zeros_initializer()
-            if dy is None
-            else tf.constant_initializer(dy),
-        )
-        self.h = self.x[1:] - self.x[:-1]
-
-    def _construct_tridiagonal_matrix(self):
-        # Last element of superdiag is ignored
-        superdiag = tf.concat([tf.zeros((1,)), self.h[:-1], tf.zeros((1,))], axis=0)
-        maindiag = tf.concat(
-            [-3 * tf.ones((1,)), -3 * (self.h[:-1] + self.h[1:]), -3 * tf.ones((1,))],
-            axis=0,
-        )
-        # First element of subdiag is ignored
-        subdiag = tf.concat([tf.zeros((1,)), self.h[1:], tf.zeros((1,))], axis=0)
-        return tf.stack([superdiag, maindiag, subdiag], axis=0)
-
-    def _construct_rhs(self):
-        """
-        Construct the right-hand side vector b for the clamped cubic spline system.
-        """
-        y = self.y
-        dy = self.dy
-        h = self.h
-        b = 20 * tf.concat(
-            [
-                -(y[1:2] - y[:1]) / h[:1] ** 2
-                + (3 * dy[:1] + 2 * dy[1:2]) / (5 * h[:1]),
-                h[:-1]
-                * h[1:]
-                * (
-                    (y[1:-1] - y[:-2]) / h[:-1] ** 3
-                    - (y[2:] - y[1:-1]) / h[1:] ** 3
-                    - (2 * dy[:-2] + 3 * dy[1:-1]) / (5 * h[:-1] ** 2)
-                    + (3 * dy[1:-1] + 2 * dy[2:]) / (5 * h[1:] ** 2)
-                ),
-                (y[-1:] - y[-2:-1]) / h[-1:] ** 2
-                - (3 * dy[-1:] + 2 * dy[-2:-1]) / (5 * h[-1:]),
-            ],
-            axis=0,
-        )
-
-        return b
-
-    def compute_coefficients(self):
-        """
-        Compute the coefficients of the cubic spline.
-        """
-        # Compute the matrix system to solve for the second derivatives
-        A = self._construct_tridiagonal_matrix()
-        b = self._construct_rhs()
-
-        return tf.linalg.tridiagonal_solve(A, b, diagonals_format="compact")
-
-    def call(self, x_new):
-        """
-        Evaluate the spline values at x_new using the coefficients.
-        """
-        x_new = tf.squeeze(x_new)
-        ddy = self.compute_coefficients()
-
-        # Find the interval where each x_new belongs
-        idx = tf.searchsorted(self.x, x_new) - 1
-        # To enable extrapolation use the edge polynomials whenever
-        # the index is < 0 or > n - 1.
-        idx = tf.clip_by_value(idx, 0, tf.shape(self.x)[0] - 2)
-
-        # Get corresponding h values for each x_new
-        h = tf.gather(self.h, idx)
-
-        # Compute spline components
-        t = (x_new - tf.gather(self.x, idx)) / h
-
-        y_left = tf.gather(self.y, idx)
-        y_right = tf.gather(self.y, idx + 1)
-        dy_left = tf.gather(self.dy, idx)
-        dy_right = tf.gather(self.dy, idx + 1)
-        ddy_left = tf.gather(ddy, idx)
-        ddy_right = tf.gather(ddy, idx + 1)
-
-        # Compute spline value using the quintic spline formula
-        spline_value = (
-            (
-                6 * (y_right - y_left)
-                - 3 * h * (dy_left + dy_right)
-                + 0.5 * h**2 * (ddy_right - ddy_left)
-            )
-            * t**5
-            + (
-                -15 * (y_right - y_left)
-                + h * (8 * dy_left + 7 * dy_right)
-                - 0.5 * h**2 * (2 * ddy_right - 3 * ddy_left)
-            )
-            * t**4
-            + (
-                10 * (y_right - y_left)
-                - 2 * h * (3 * dy_left + 2 * dy_right)
-                + 0.5 * h**2 * (ddy_right - 3 * ddy_left)
-            )
-            * t**3
-            + 0.5 * h**2 * ddy_left * t**2
-            + h * dy_left * t
-            + y_left
-        )
-
-        return tf.reshape(spline_value, (-1, 1))
 
 
 class QuinticHermiteSpline(tf.keras.layers.Layer):
@@ -641,85 +583,6 @@ class QuinticHermiteSpline(tf.keras.layers.Layer):
         )
 
         return tf.reshape(spline_value, (-1, 1))
-
-
-class NaturalCubicSpline(BaseCubicSpline):
-    def _construct_tridiagonal_matrix(self):
-        """
-        Construct the tridiagonal matrix for the natural cubic spline system.
-        """
-        # Last element of superdiag is ignored
-        superdiag = tf.concat([tf.zeros((1,)), self.h[1:], tf.zeros((1,))], axis=0)
-        maindiag = tf.concat(
-            [tf.ones((1,)), 2 * (self.h[:-1] + self.h[1:]), tf.ones((1,))],
-            axis=0,
-        )
-        # First element of subdiag is ignored
-        subdiag = tf.concat([tf.zeros((1,)), self.h[:-1], tf.zeros((1,))], axis=0)
-        return tf.stack([superdiag, maindiag, subdiag], axis=0)
-
-    def _construct_rhs(self):
-        """
-        Construct the right-hand side vector b for the natural cubic spline system.
-        """
-        # The zeros at the start and end correspond to the natural spline boundary
-        # conditions
-        return tf.concat(
-            [
-                tf.zeros((1,)),
-                6
-                * (
-                    (self.y[2:] - self.y[1:-1]) / self.h[1:]
-                    - (self.y[1:-1] - self.y[:-2]) / self.h[:-1]
-                ),
-                tf.zeros((1,)),
-            ],
-            axis=0,
-        )
-
-
-class ClampedCubicSpline(BaseCubicSpline):
-    def __init__(self, x, y=None, dy=[0, 0], dy_trainable=True, dy_name="dy", **kwargs):
-        super().__init__(x, y=y, **kwargs)
-        self.dy = self.add_weight(
-            shape=(2,),
-            name=dy_name,
-            trainable=dy_trainable,
-            initializer=tf.zeros_initializer()
-            if dy is None
-            else tf.constant_initializer(dy),
-        )
-
-    def _construct_tridiagonal_matrix(self):
-        """
-        Construct the tridiagonal matrix for the clamped cubic spline system.
-        """
-        # Last element of superdiag is ignored
-        superdiag = tf.concat([self.h, tf.zeros((1,))], axis=0)
-        maindiag = tf.concat(
-            [2 * self.h[:1], 2 * (self.h[:-1] + self.h[1:]), 2 * self.h[-1:]],
-            axis=0,
-        )
-        # First element of subdiag is ignored
-        subdiag = tf.concat([tf.zeros((1,)), self.h], axis=0)
-        return tf.stack([superdiag, maindiag, subdiag], axis=0)
-
-    def _construct_rhs(self):
-        """
-        Construct the right-hand side vector b for the clamped cubic spline system.
-        """
-        y = self.y
-        h = self.h
-        b = tf.concat(
-            [
-                6 * ((y[1] - y[0]) / h[0] - self.dy[:1]),
-                6 * ((y[2:] - y[1:-1]) / h[1:] - (y[1:-1] - y[:-2]) / h[:-1]),
-                6 * (self.dy[-1:] - (y[-1] - y[-2]) / h[-1]),
-            ],
-            axis=0,
-        )
-
-        return b
 
 
 class PairPhi(tf.keras.layers.Layer):
@@ -918,21 +781,6 @@ class NaturalCubicSplinePhi(PairPhi, NaturalCubicSpline):
         )
 
 
-class NaturalQuinticSplinePhi(PairPhi, NaturalQuinticSpline):
-    def __init__(self, pair_type, r_k, a_k=None, da_k=None, **kwargs):
-        self.pair_type = pair_type
-        NaturalQuinticSpline.__init__(
-            self,
-            x=r_k,
-            y=a_k,
-            dy=da_k,
-            x_name=f"r_k_{pair_type}",
-            y_name=f"a_k_{pair_type}",
-            dy_name=f"da_k_{pair_type}",
-            **kwargs,
-        )
-
-
 class FittedQuinticSplinePhi(PairPhi, QuinticHermiteSpline):
     def __init__(self, pair_type, r_k, a_k=None, da_k=None, dda_k=None, **kwargs):
         self.pair_type = pair_type
@@ -1094,21 +942,6 @@ class NaturalCubicSplineRho(PairRho, NaturalCubicSpline):
             y=A_k,
             x_name=f"R_k_{pair_type}",
             y_name=f"A_k_{pair_type}",
-            **kwargs,
-        )
-
-
-class NaturalQuinticSplineRho(PairRho, NaturalQuinticSpline):
-    def __init__(self, pair_type, R_k, A_k=None, dA_k=None, **kwargs):
-        self.pair_type = pair_type
-        NaturalQuinticSpline.__init__(
-            self,
-            x=R_k,
-            y=A_k,
-            dy=dA_k,
-            x_name=f"R_k_{pair_type}",
-            y_name=f"A_k_{pair_type}",
-            dy_name=f"dA_k_{pair_type}",
             **kwargs,
         )
 
