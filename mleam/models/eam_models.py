@@ -49,8 +49,8 @@ class EAMPotential(tf.keras.Model):
     def __init__(
         self,
         atom_types: List[str],
-        params={},
-        hyperparams={},
+        initial_params=None,
+        hyperparams=None,
         build_forces=False,
         preprocessed_input=False,
         cutoff=None,
@@ -81,8 +81,9 @@ class EAMPotential(tf.keras.Model):
         super().__init__(**kwargs)
 
         self.atom_types = atom_types
-        self.params = params
-        self.hyperparams.update(hyperparams)
+        self.initial_params = initial_params if initial_params is not None else {}
+        if hyperparams is not None:
+            self.hyperparams.update(hyperparams)
 
         self.type_dict = {}
         for i, t in enumerate(atom_types):
@@ -119,7 +120,11 @@ class EAMPotential(tf.keras.Model):
                 # The 'or' in the max function is used as fallback in case the list
                 # comprehension returns an empty list
                 self.cutoff = max(
-                    [params.get(key, 7.5) for key in params if key[0] == "cut_b"]
+                    [
+                        initial_params.get(key, 7.5)
+                        for key in initial_params
+                        if key[0] == "cut_b"
+                    ]
                     or [7.5]
                 )
             inputs["positions"] = tf.keras.Input(shape=(None, 3), ragged=True)
@@ -133,6 +138,16 @@ class EAMPotential(tf.keras.Model):
             self.offsets,
         ) = self.build_functions()
 
+    # def get_config(self):
+    #     config = super().get_config()
+    #     config.update({"params": self.params, "hyperparams": self.hyperparams})
+    #     return config
+
+    def build(self, input_shape):
+        # Prevent the standard .build() from executing because it can not handle
+        # ragged input_shapes
+        pass
+
     def build_functions(self):
         pair_potentials = {}
         pair_rho = {}
@@ -141,8 +156,8 @@ class EAMPotential(tf.keras.Model):
 
             cutoff_function = PolynomialCutoffFunction(
                 pair_type,
-                a=self.params.get(("cut_a", pair_type), 5.0),
-                b=self.params.get(("cut_b", pair_type), 7.5),
+                a=self.initial_params.get(("cut_a", pair_type), 5.0),
+                b=self.initial_params.get(("cut_b", pair_type), 7.5),
             )
             pair_potential = self.get_pair_potential(pair_type)
             rho = self.get_rho(pair_type)
@@ -155,7 +170,7 @@ class EAMPotential(tf.keras.Model):
                 # sharing of the parameter r0 between phi and rho layers
                 scaled_input = InputNormalizationAndShift(
                     pair_type,
-                    r0=self.params.get(("r0", pair_type), 2.7),
+                    r0=self.initial_params.get(("r0", pair_type), 2.7),
                     trainable=self.hyperparams.get("r0_trainable", False),
                 )
 
@@ -575,16 +590,16 @@ class SMATB(EAMPotential):
     def get_pair_potential(self, pair_type):
         return BornMayer(
             pair_type,
-            A=self.params.get(("A", pair_type), 0.2),
-            p=self.params.get(("p", pair_type), 9.2),
+            A=self.initial_params.get(("A", pair_type), 0.2),
+            p=self.initial_params.get(("p", pair_type), 9.2),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type):
         return ExpRho(
             pair_type,
-            xi=self.params.get(("xi", pair_type), 1.6),
-            q=self.params.get(("q", pair_type), 3.5),
+            xi=self.initial_params.get(("xi", pair_type), 1.6),
+            q=self.initial_params.get(("q", pair_type), 3.5),
             name="Rho-%s" % pair_type,
         )
 
@@ -596,19 +611,19 @@ class FinnisSinclair(EAMPotential):
     def get_pair_potential(self, pair_type):
         return FinnisSinclairPhi(
             pair_type,
-            c=self.params.get(("c", pair_type), 5.0),
-            c0=self.params.get(("c0", pair_type), 1.0),
-            c1=self.params.get(("c1", pair_type), 1.0),
-            c2=self.params.get(("c2", pair_type), 1.0),
+            c=self.initial_params.get(("c", pair_type), 5.0),
+            c0=self.initial_params.get(("c0", pair_type), 1.0),
+            c1=self.initial_params.get(("c1", pair_type), 1.0),
+            c2=self.initial_params.get(("c2", pair_type), 1.0),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type):
         return FinnisSinclairRho(
             pair_type,
-            A=self.params.get(("A", pair_type), 1.0),
-            d=self.params.get(("d", pair_type), 5.0),
-            beta=self.params.get(("beta", pair_type), 0.0),
+            A=self.initial_params.get(("A", pair_type), 1.0),
+            d=self.initial_params.get(("d", pair_type), 5.0),
+            beta=self.initial_params.get(("beta", pair_type), 0.0),
             beta_trainable=self.hyperparams.get("beta_trainable", True),
             name="Rho-%s" % pair_type,
         )
@@ -621,8 +636,8 @@ class SuttonChen(EAMPotential):
     def get_pair_potential(self, pair_type):
         return SuttonChenPhi(
             pair_type,
-            c=self.params.get(("c", pair_type), 3.0),
-            n=self.params.get(("n", pair_type), 6),
+            c=self.initial_params.get(("c", pair_type), 3.0),
+            n=self.initial_params.get(("n", pair_type), 6),
             n_trainable=self.hyperparams.get("n_trainable", False),
             name="Phi-%s" % pair_type,
         )
@@ -630,8 +645,8 @@ class SuttonChen(EAMPotential):
     def get_rho(self, pair_type):
         return SuttonChenRho(
             pair_type,
-            a=self.params.get(("a", pair_type), 3.0),
-            m=self.params.get(("m", pair_type), 6),
+            a=self.initial_params.get(("a", pair_type), 3.0),
+            m=self.initial_params.get(("m", pair_type), 6),
             m_trainable=self.hyperparams.get("m_trainable", False),
             name="Rho-%s" % pair_type,
         )
@@ -644,20 +659,20 @@ class DoubleSuttonChen(EAMPotential):
     def get_pair_potential(self, pair_type):
         return DoubleSuttonChenPhi(
             pair_type,
-            c_1=self.params.get(("c_1", pair_type), 3.0),
-            n_1=self.params.get(("n_1", pair_type), 6),
-            c_2=self.params.get(("c_2", pair_type), 3.0),
-            n_2=self.params.get(("n_2", pair_type), 8),
+            c_1=self.initial_params.get(("c_1", pair_type), 3.0),
+            n_1=self.initial_params.get(("n_1", pair_type), 6),
+            c_2=self.initial_params.get(("c_2", pair_type), 3.0),
+            n_2=self.initial_params.get(("n_2", pair_type), 8),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type):
         return DoubleSuttonChenRho(
             pair_type,
-            a_1=self.params.get(("a_1", pair_type), 3.0),
-            m_1=self.params.get(("m_1", pair_type), 6),
-            a_2=self.params.get(("a_2", pair_type), 3.0),
-            m_2=self.params.get(("m_2", pair_type), 8),
+            a_1=self.initial_params.get(("a_1", pair_type), 3.0),
+            m_1=self.initial_params.get(("m_1", pair_type), 6),
+            a_2=self.initial_params.get(("a_2", pair_type), 3.0),
+            m_2=self.initial_params.get(("m_2", pair_type), 8),
             name="Rho-%s" % pair_type,
         )
 
@@ -669,26 +684,26 @@ class Johnson(EAMPotential):
     def get_pair_potential(self, pair_type: str):
         return BornMayer(
             pair_type,
-            A=self.params.get(("A", pair_type), 0.2),
-            p=self.params.get(("p", pair_type), 9.2),
+            A=self.initial_params.get(("A", pair_type), 0.2),
+            p=self.initial_params.get(("p", pair_type), 9.2),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type: str):
         return ExpRho(
             pair_type,
-            xi=self.params.get(("xi", pair_type), 1.6),
-            q=self.params.get(("q", pair_type), 3.5),
+            xi=self.initial_params.get(("xi", pair_type), 1.6),
+            q=self.initial_params.get(("q", pair_type), 3.5),
             name="Rho-%s" % pair_type,
         )
 
     def get_embedding(self, atom_type: str):
         return JohnsonEmbedding(
             atom_type,
-            F0=self.params.get(("F0", atom_type), 0.5),
-            eta=self.params.get(("eta", atom_type), 0.5),
-            F1=self.params.get(("F1", atom_type), 0.5),
-            zeta=self.params.get(("zeta", atom_type), 0.5),
+            F0=self.initial_params.get(("F0", atom_type), 0.5),
+            eta=self.initial_params.get(("eta", atom_type), 0.5),
+            F1=self.initial_params.get(("F1", atom_type), 0.5),
+            zeta=self.initial_params.get(("zeta", atom_type), 0.5),
             power_law_trainable=self.hyperparams.get("power_law_trainable", True),
             name=f"{atom_type}-Embedding",
         )
@@ -696,20 +711,20 @@ class Johnson(EAMPotential):
 
 class Ackland(EAMPotential):
     def get_pair_potential(self, pair_type: str):
-        r_k = self.params.get(("r_k", pair_type), np.linspace(2, 5, 6))
+        r_k = self.initial_params.get(("r_k", pair_type), np.linspace(2, 5, 6))
         return CubicSplinePhi(
             pair_type,
             r_k=r_k,
-            a_k=self.params.get(("a_k", pair_type), np.zeros_like(r_k)),
+            a_k=self.initial_params.get(("a_k", pair_type), np.zeros_like(r_k)),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type: str):
-        R_k = self.params.get(("R_k", pair_type), np.array([2.0, 3.0]))
+        R_k = self.initial_params.get(("R_k", pair_type), np.array([2.0, 3.0]))
         return CubicSplineRho(
             pair_type,
             R_k=R_k,
-            A_k=self.params.get(("A_k", pair_type), np.zeros_like(R_k)),
+            A_k=self.initial_params.get(("A_k", pair_type), np.zeros_like(R_k)),
             name="Rho-%s" % pair_type,
         )
 
@@ -721,20 +736,20 @@ class DoubleExp(EAMPotential):
     def get_pair_potential(self, pair_type):
         return DoubleExpPhi(
             pair_type,
-            A_1=self.params.get(("A_1", pair_type), 0.2),
-            p_1=self.params.get(("p_1", pair_type), 9.2),
-            A_2=self.params.get(("A_2", pair_type), 0.05),
-            p_2=self.params.get(("p_2", pair_type), 0.1),
+            A_1=self.initial_params.get(("A_1", pair_type), 0.2),
+            p_1=self.initial_params.get(("p_1", pair_type), 9.2),
+            A_2=self.initial_params.get(("A_2", pair_type), 0.05),
+            p_2=self.initial_params.get(("p_2", pair_type), 0.1),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type):
         return DoubleExpRho(
             pair_type,
-            xi_1=self.params.get(("xi_1", pair_type), 1.6),
-            q_1=self.params.get(("q_1", pair_type), 3.5),
-            xi_2=self.params.get(("xi_2", pair_type), 0.1),
-            q_2=self.params.get(("q_2", pair_type), 0.1),
+            xi_1=self.initial_params.get(("xi_1", pair_type), 1.6),
+            q_1=self.initial_params.get(("q_1", pair_type), 3.5),
+            xi_2=self.initial_params.get(("xi_2", pair_type), 0.1),
+            q_2=self.initial_params.get(("q_2", pair_type), 0.1),
             name="Rho-%s" % pair_type,
         )
 
@@ -746,20 +761,20 @@ class FittedQuinticSpline(EAMPotential):
     def get_pair_potential(self, pair_type: str):
         return FittedQuinticSplinePhi(
             pair_type,
-            r_k=self.params.get(("r_k", pair_type), np.array([2.0, 3.0])),
-            a_k=self.params.get(("a_k", pair_type)),
-            da_k=self.params.get(("da_k", pair_type)),
-            dda_k=self.params.get(("dda_k", pair_type)),
+            r_k=self.initial_params.get(("r_k", pair_type), np.array([2.0, 3.0])),
+            a_k=self.initial_params.get(("a_k", pair_type)),
+            da_k=self.initial_params.get(("da_k", pair_type)),
+            dda_k=self.initial_params.get(("dda_k", pair_type)),
             name="Phi-%s" % pair_type,
         )
 
     def get_rho(self, pair_type: str):
         return FittedQuinticSplineRho(
             pair_type,
-            R_k=self.params.get(("R_k", pair_type), np.array([2.0, 3.0])),
-            A_k=self.params.get(("A_k", pair_type)),
-            dA_k=self.params.get(("dA_k", pair_type)),
-            ddA_k=self.params.get(("ddA_k", pair_type)),
+            R_k=self.initial_params.get(("R_k", pair_type), np.array([2.0, 3.0])),
+            A_k=self.initial_params.get(("A_k", pair_type)),
+            dA_k=self.initial_params.get(("dA_k", pair_type)),
+            ddA_k=self.initial_params.get(("ddA_k", pair_type)),
             name="Rho-%s" % pair_type,
         )
 
@@ -775,13 +790,13 @@ class CommonEmbeddingSMATB(SMATB):
             pair_type = "".join([t1, t2])
             normalized_input = InputNormalizationAndShift(
                 pair_type,
-                r0=self.params.get(("r0", pair_type), 2.7),
+                r0=self.initial_params.get(("r0", pair_type), 2.7),
                 trainable=self.hyperparams.get("r0_trainable", False),
             )
             cutoff_function = PolynomialCutoffFunction(
                 pair_type,
-                a=self.params.get(("cut_a", pair_type), 5.0),
-                b=self.params.get(("cut_b", pair_type), 7.5),
+                a=self.initial_params.get(("cut_a", pair_type), 5.0),
+                b=self.initial_params.get(("cut_b", pair_type), 7.5),
             )
             pair_potential = self.get_pair_potential(pair_type)
             rho = self.get_rho(pair_type)
@@ -835,9 +850,9 @@ class RhoTwoExpModel(SMATB):
     def get_rho(self, pair_type):
         return DoubleExpRho(
             pair_type,
-            xi_1=self.params.get(("xi_1", pair_type), 1.6),
-            q_1=self.params.get(("q_1", pair_type), 3.5),
-            xi_2=self.params.get(("xi_2", pair_type), 0.8),
-            q_2=self.params.get(("q_2", pair_type), 1.0),
+            xi_1=self.initial_params.get(("xi_1", pair_type), 1.6),
+            q_1=self.initial_params.get(("q_1", pair_type), 3.5),
+            xi_2=self.initial_params.get(("xi_2", pair_type), 0.8),
+            q_2=self.initial_params.get(("q_2", pair_type), 1.0),
             name="Rho-%s" % pair_type,
         )
